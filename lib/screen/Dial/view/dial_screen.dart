@@ -364,17 +364,7 @@ class _DialScreenState extends State<DialScreen> {
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        // Padding(
-                        //   padding: const EdgeInsets.all(16),
-                        //   child: Text(
-                        //     typedNumber,
-                        //     style: TextStyle(
-                        //       fontSize: 34.sp,
-                        //       fontWeight: FontWeight.bold,
-                        //       color: ColorConstants.blaclColor,
-                        //     ),
-                        //   ),
-                        // ),
+                     
                         Padding(
                           padding: const EdgeInsets.symmetric(horizontal: 16),
                           child: TextField(
@@ -382,12 +372,12 @@ class _DialScreenState extends State<DialScreen> {
                               ..selection = TextSelection.fromPosition(
                                 TextPosition(offset: typedNumber.length),
                               ),
-                            readOnly: true, // disables system keyboard
+                            readOnly: true, 
                             showCursor: true,
                             enableInteractiveSelection:
-                                true, // allows cursor movement and selection
+                                true, 
                             onTap: () {
-                              // optional: set cursor at the end on tap
+                            
                               final controller = TextEditingController(
                                 text: typedNumber,
                               );
