@@ -1,14 +1,18 @@
+
+
 import 'dart:io';
+import 'package:android_intent_plus/android_intent.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
+import 'package:flutter_slidable/flutter_slidable.dart';
 import 'package:hive_flutter/hive_flutter.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'package:phoneapp/constants/color_constants.dart';
 import 'package:phoneapp/constants/text_constants.dart';
 import 'package:phoneapp/screen/Contacts/model/contacts_model.dart';
-import 'package:phoneapp/screen/Contacts/provider/contact_provider.dart';
 import 'package:phoneapp/screen/Contacts/view/create_contact.dart';
+import 'package:phoneapp/screen/Dial/provider/call_provider.dart';
 import 'package:phoneapp/screen/Favourites/provider/favourite_provider.dart';
-import 'package:phoneapp/screen/Favourites/view/favourites_screen.dart';
 import 'package:provider/provider.dart';
 
 class ContactScreen extends StatefulWidget {
@@ -22,303 +26,65 @@ class ContactScreen extends StatefulWidget {
 class _ContactScreenState extends State<ContactScreen> {
   bool allSelect = false;
   List<ContactModel> favContacts = [];
-  List<ContactModel> allContacts = [];
-  List<ContactModel> displayedContacts = [];
   final TextEditingController _searchController = TextEditingController();
+
   bool isFavourite(ContactModel contact) {
     final favBox = Hive.box<ContactModel>('favourites');
     return favBox.values.any((e) => e.number == contact.number);
   }
 
-  @override
-  void initState() {
-    super.initState();
-    final box = Hive.box<ContactModel>('contacts');
-    allContacts = box.values.toList();
-    displayedContacts = List.from(allContacts);
-
-    box.watch().listen((event) {
-      setState(() {
-        allContacts = box.values.toList();
-        filterContacts(_searchController.text);
-      });
+  void selectAllItems(List<ContactModel> displayedContacts) {
+    setState(() {
+      allSelect = !allSelect;
+      favContacts = allSelect ? List.from(displayedContacts) : [];
     });
   }
 
   Map<String, List<ContactModel>> groupContacts(List<ContactModel> contacts) {
     final Map<String, List<ContactModel>> grouped = {};
-    contacts.sort(
-      (a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()),
-    );
+    contacts.sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
 
     for (var contact in contacts) {
-      String firstLetter = contact.name.isNotEmpty
-          ? contact.name[0].toUpperCase()
-          : "?";
-      if (!grouped.containsKey(firstLetter)) {
-        grouped[firstLetter] = [];
+      String firstLetter;
+      if (contact.name.isNotEmpty) {
+        final runes = contact.name.runes.toList();
+        firstLetter = String.fromCharCode(runes[0]).toUpperCase();
+      } else {
+        firstLetter = "?";
       }
+
+      grouped.putIfAbsent(firstLetter, () => []);
       grouped[firstLetter]!.add(contact);
     }
+
     return grouped;
   }
 
-  void filterContacts(String query) {
-    setState(() {
-      if (query.isEmpty) {
-        displayedContacts = List.from(allContacts);
-      } else {
-        displayedContacts = allContacts.where((c) {
-          return c.name.toLowerCase().contains(query.toLowerCase()) ||
-              c.number.contains(query);
-        }).toList();
-      }
-    });
+  Future<void> makeCall(String number, int simSlot) async {
+    var status = await Permission.phone.status;
+    if (!status.isGranted) {
+      status = await Permission.phone.request();
+      if (!status.isGranted) return;
+    }
+
+    final intent = AndroidIntent(
+      action: 'android.intent.action.CALL',
+      data: 'tel:$number',
+      arguments: {"com.android.phone.extra.slot": simSlot},
+    );
+    await intent.launch();
+
+    if (!mounted) return;
+    final callProvider = Provider.of<CallProvider>(context, listen: false);
+    callProvider.addCall(number, simSlot);
   }
 
-  @override
-  Widget build(BuildContext context) {
-    final groupedContacts = groupContacts(displayedContacts);
-
-    return Scaffold(
-      backgroundColor: ColorConstants.whiteColor,
-      appBar: AppBar(
-         backgroundColor: ColorConstants.transparent,
-          iconTheme: const IconThemeData(
-    color: ColorConstants.whiteColor, 
-    
-    
-  ),
-  
-        elevation: 0,
-        flexibleSpace: Container(
-          decoration: const BoxDecoration(
-            gradient: LinearGradient(
-              colors: [ColorConstants.blue, ColorConstants.purple],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ),
-          ),
-        ),
-        title:  Text(
-          TextConstants.contacts,
-          style: TextStyle(
-            fontWeight: FontWeight.bold,
-            color: ColorConstants.whiteColor,
-            fontSize: 28.sp,
-          ),
-        ),
-          leading: Navigator.canPop(context)
-      ? IconButton(
-          icon:  Icon(
-            Icons.arrow_back_ios_new,
-            size: 22.sp,
-            color: ColorConstants.whiteColor,
-          ),
-          onPressed: () => Navigator.pop(context),
-        )
-      : null,
-        
-        actions: [
-          if (widget.showCheckbox)
-            IconButton(
-              onPressed: selectAllItems,
-              icon: allSelect
-                  ? Icon(Icons.favorite, color: ColorConstants.whiteColor)
-                  : Icon(Icons.favorite_border, color: ColorConstants.whiteColor),
-            ),
-        ],
-        
-        bottom: PreferredSize(
-          preferredSize:  Size.fromHeight(50.h),
-          child: Padding(
-            padding:  EdgeInsets.symmetric(horizontal: 16.w, vertical: 8.h),
-            child: TextField(
-              controller: _searchController,
-              
-              decoration:  InputDecoration(
-                hint: Text(TextConstants.searchContacts,style: TextStyle(color: ColorConstants.whiteColor,fontSize: 18.sp),),
-                prefixIcon: Icon(Icons.search,color: ColorConstants.whiteColor,),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.all(Radius.circular(8.r)),
-                
-                ),
-                enabledBorder: OutlineInputBorder(
-                  borderSide: BorderSide(color: ColorConstants.whiteColor,width: 0.5.w)
-                )
-                
-              ),
-              
-              onChanged: filterContacts,
-            ),
-          ),
-        ),
-      ),
-
-      body: groupedContacts.isEmpty
-          ? const Center(child: Text(TextConstants.noContactFount))
-          : ListView(
-              children: groupedContacts.entries.map((entry) {
-                String letter = entry.key;
-                List<ContactModel> contacts = entry.value;
-
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    SizedBox(height: 15.h),
-
-                    Container(
-                      padding:  EdgeInsets.symmetric(
-                        horizontal: 16.w,
-                        vertical: 4.h,
-                      ),
-                      child: Text(
-                        letter,
-                        style:  TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 15.sp,
-                          color: ColorConstants.greyColor,
-                        ),
-                      ),
-                    ),
-
-                    ...contacts.map(
-                      (contact) => ListTile(
-                        leading: widget.showCheckbox
-                            ? Checkbox(
-                                value: favContacts.contains(contact),
-                                onChanged: (value) {
-                                  setState(() {
-                                    if (value == true) {
-                                      favContacts.add(contact);
-                                    } else {
-                                      favContacts.remove(contact);
-                                    }
-                                  });
-                                },
-                              )
-                            : contact.profile.isEmpty
-                            ? CircleAvatar(
-                                backgroundColor: Colors.blue.shade700,
-                                child: Text(
-                                  contact.name[0].toUpperCase(),
-                                  style:  TextStyle(
-                                    color: ColorConstants.whiteColor,
-                                    fontSize: 22.sp,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                              )
-                            : CircleAvatar(
-                                backgroundImage: contact.profile.startsWith("/")
-                                    ? FileImage(File(contact.profile))
-                                    : AssetImage(contact.profile)
-                                          as ImageProvider,
-                              ),
-                        title: Text(contact.name),
-                        subtitle: Text(contact.number),
-
-                        trailing: widget.showCheckbox
-                            ? null
-                            : Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  IconButton(
-                                    icon: const Icon(
-                                      Icons.delete_outline,
-                                      color: ColorConstants.greyColor,
-                                    ),
-                                    onPressed: () =>
-                                        _showDeleteDialog(context, contact),
-                                  ),
-                                  IconButton(
-                                    icon: Icon(
-                                      isFavourite(contact)
-                                          ? Icons.favorite
-                                          : Icons.favorite_border,
-                                      color:isFavourite(contact)? ColorConstants.lightred :ColorConstants.greyColor
-                                    ),
-                                    onPressed: () {
-                                      final favouriteProvider =
-                                          Provider.of<FavouriteProvider>(
-                                            context,
-                                            listen: false,
-                                          );
-
-                                      setState(() {
-                                        if (isFavourite(contact)) {
-                                          favouriteProvider.deleteFavourite(
-                                            contact,
-                                          );
-                                        } else {
-                                          favouriteProvider.addToFavourite([
-                                            contact,
-                                          ]);
-                                        }
-                                      });
-                                    },
-                                  ),
-                                ],
-                              ),
-                      ),
-                    ),
-                  ],
-                );
-              }).toList(),
-            ),
-      floatingActionButtonLocation: widget.showCheckbox
-          ? FloatingActionButtonLocation.centerFloat
-          : FloatingActionButtonLocation.endFloat,
-
-floatingActionButton: 
-  (! widget.showCheckbox && favContacts.isEmpty)
-      ? Container(
-         decoration: const BoxDecoration(
-          
-            shape: BoxShape.circle,
-            gradient: LinearGradient(
-              colors: [ColorConstants.blue, ColorConstants.purple],   
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ),
-          ),
-        child: FloatingActionButton(
-           backgroundColor: Colors.transparent, 
-
-            onPressed: () {
-              if (!mounted) return;
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const CreateContactScreen()),
-              );
-            },
-            shape: const CircleBorder(),
-            child: const Icon(Icons.add, color: ColorConstants.whiteColor),
-          ),
-      )
-      : (favContacts.isNotEmpty)
-          ? FloatingActionButton(
-              shape: const CircleBorder(),
-              backgroundColor: ColorConstants.lightred,
-              onPressed: () {
-                final favouriteProvider = Provider.of<FavouriteProvider>(
-                  context,
-                  listen: false,
-                );
-                favouriteProvider.addToFavourite(favContacts);
-                if (!mounted) return;
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => const FavouriteScreen()),
-                );
-              },
-              child: Icon(Icons.favorite, color: ColorConstants.whiteColor),
-            )
-          : null, 
-
-
-
+  Future<void> sendMessage(String number) async {
+    final intent = AndroidIntent(
+      action: 'android.intent.action.SENDTO',
+      data: 'smsto:$number',
     );
+    await intent.launch();
   }
 
   void _showDeleteDialog(BuildContext context, ContactModel contact) {
@@ -335,25 +101,20 @@ floatingActionButton:
           TextButton(
             onPressed: () {
               Navigator.pop(context);
+              final box = Hive.box<ContactModel>('contacts');
+              box.delete(contact.key);
 
-              final contactsProvider = Provider.of<ContactProvider>(
-                context,
-                listen: false,
-              );
-              final favProvider = Provider.of<FavouriteProvider>(
-                context,
-                listen: false,
-              );
-
-              contactsProvider.deleteContact(contact);
-              favProvider.deleteFavourite(contact);
+              final favBox = Hive.box<ContactModel>('favourites');
+              final favKey = favBox.values
+                  .firstWhere(
+                    (e) => e.number == contact.number,
+                    orElse: () => ContactModel(name: '', number: '', profile: ''),
+                  )
+                  .key;
+              if (favKey != null) favBox.delete(favKey);
 
               setState(() {
-                allContacts.remove(contact);
-                displayedContacts.remove(contact);
                 favContacts.remove(contact);
-
-                filterContacts(_searchController.text);
               });
             },
             child: const Text(
@@ -366,20 +127,326 @@ floatingActionButton:
     );
   }
 
-  void selectAllItems() {
-    setState(() {
-      allSelect = !allSelect;
-      if (allSelect) {
-        favContacts = List.from(displayedContacts);
-      } else {
-        favContacts.clear();
-      }
-    });
+  @override
+  Widget build(BuildContext context) {
+    final contactBox = Hive.box<ContactModel>('contacts');
+
+    return Scaffold(
+      backgroundColor: ColorConstants.whiteColor,
+      body: Column(
+        children: [
+          customContactAppBar(),
+          Expanded(
+            child: ValueListenableBuilder(
+              valueListenable: contactBox.listenable(),
+              builder: (context, Box<ContactModel> box, _) {
+                List<ContactModel> contacts = box.values.toList();
+
+                final query = _searchController.text.trim().toLowerCase();
+                if (query.isNotEmpty) {
+                  contacts = contacts.where((c) {
+                    return c.name.toLowerCase().contains(query) ||
+                        c.number.contains(query);
+                  }).toList();
+                }
+
+                final grouped = groupContacts(contacts);
+
+                if (grouped.isEmpty) {
+                  return Center(
+                    child: Text(
+                      TextConstants.noContactFount,
+                      style: TextStyle(fontSize: 20.sp),
+                    ),
+                  );
+                }
+
+                return ListView(
+                  children: grouped.entries.map((entry) {
+                    final letter = entry.key;
+                    final groupContacts = entry.value;
+
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        SizedBox(height: 15.h),
+                        Padding(
+                          padding: EdgeInsets.symmetric(horizontal: 16.w),
+                          child: Text(
+                            letter,
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 15.sp,
+                              color: ColorConstants.greyColor,
+                            ),
+                          ),
+                        ),
+                        ...groupContacts.map((contact) {
+                          return Slidable(
+                            key: ValueKey(contact.number),
+                            startActionPane: ActionPane(
+                              motion: const StretchMotion(),
+                              children: [
+                                SlidableAction(
+                                  onPressed: (_) => makeCall(contact.number, 0),
+                                  icon: Icons.call,
+                                  backgroundColor: Colors.green,
+                                  label: "Call",
+                                ),
+                                SlidableAction(
+                                  onPressed: (_) => sendMessage(contact.number),
+                                  icon: Icons.message,
+                                  backgroundColor: Colors.blue,
+                                  label: "SMS",
+                                ),
+                              ],
+                            ),
+                            child: ListTile(
+                              leading: widget.showCheckbox
+                                  ? Checkbox(
+                                      value: favContacts.contains(contact),
+                                      onChanged: (value) {
+                                        setState(() {
+                                          if (value == true) {
+                                            favContacts.add(contact);
+                                          } else {
+                                            favContacts.remove(contact);
+                                          }
+                                        });
+                                      },
+                                    )
+                                  : CircleAvatar(
+                                      radius: 30.r,
+                                      backgroundColor: ColorConstants.blue,
+                                      child: contact.profile.isEmpty
+                                          ? Text(
+                                              String.fromCharCodes(
+                                                  contact.name.runes.take(1)),
+                                              style: TextStyle(
+                                                color: Colors.white,
+                                                fontSize: 22.sp,
+                                                fontWeight: FontWeight.bold,
+                                              ),
+                                            )
+                                          : contact.profile.startsWith("/")
+                                              ? ClipOval(
+                                                  child: Image.file(
+                                                    File(contact.profile),
+                                                    width: 60.r,
+                                                    height: 60.r,
+                                                    fit: BoxFit.cover,
+                                                  ),
+                                                )
+                                              : RegExp(
+                                                      r'^[\u{1F300}-\u{1FAFF}]',
+                                                      unicode: true)
+                                                  .hasMatch(contact.profile)
+                                                  ? Text(
+                                                      contact.profile,
+                                                      style:
+                                                          TextStyle(fontSize: 26.sp),
+                                                    )
+                                                  : ClipOval(
+                                                      child: Image.asset(
+                                                        contact.profile,
+                                                        width: 60.r,
+                                                        height: 60.r,
+                                                        fit: BoxFit.cover,
+                                                      ),
+                                                    ),
+                                    ),
+                              title: Text(
+                                contact.name,
+                                style: TextStyle(fontSize: 12.sp),
+                              ),
+                              subtitle: Text(
+                                contact.number,
+                                style: TextStyle(fontSize: 12.sp),
+                              ),
+                              trailing: widget.showCheckbox
+                                  ? null
+                                  : Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        IconButton(
+                                          icon: Icon(
+                                            Icons.delete_outline,
+                                            color: ColorConstants.greyColor,
+                                            size: 20.sp,
+                                          ),
+                                          onPressed: () => _showDeleteDialog(
+                                            context,
+                                            contact,
+                                          ),
+                                        ),
+                                        IconButton(
+                                          icon: Icon(
+                                            isFavourite(contact)
+                                                ? Icons.favorite
+                                                : Icons.favorite_border,
+                                            size: 20.sp,
+                                            color: isFavourite(contact)
+                                                ? ColorConstants.lightred
+                                                : ColorConstants.greyColor,
+                                          ),
+                                          onPressed: () {
+                                            final favouriteProvider =
+                                                Provider.of<FavouriteProvider>(
+                                              context,
+                                              listen: false,
+                                            );
+                                            setState(() {
+                                              if (isFavourite(contact)) {
+                                                favouriteProvider
+                                                    .deleteFavourite(contact);
+                                              } else {
+                                                favouriteProvider
+                                                    .addToFavourite([contact]);
+                                              }
+                                            });
+                                          },
+                                        ),
+                                      ],
+                                    ),
+                            ),
+                          );
+                        })
+                      ],
+                    );
+                  }).toList(),
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+      floatingActionButtonLocation: widget.showCheckbox
+          ? FloatingActionButtonLocation.centerFloat
+          : FloatingActionButtonLocation.endFloat,
+      floatingActionButton: (!widget.showCheckbox && favContacts.isEmpty)
+          ? Container(
+              decoration: const BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: LinearGradient(
+                  colors: [ColorConstants.blue, ColorConstants.purple],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+              ),
+              child: FloatingActionButton(
+                backgroundColor: Colors.transparent,
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const CreateContactScreen(),
+                    ),
+                  );
+                },
+                shape: const CircleBorder(),
+                child: const Icon(Icons.add, color: ColorConstants.whiteColor),
+              ),
+            )
+          : (favContacts.isNotEmpty)
+              ? FloatingActionButton(
+                  shape: const CircleBorder(),
+                  backgroundColor: ColorConstants.lightred,
+                  onPressed: () {
+                    final favouriteProvider = Provider.of<FavouriteProvider>(
+                      context,
+                      listen: false,
+                    );
+                    favouriteProvider.addToFavourite(favContacts);
+                    Navigator.pop(context);
+                  },
+                  child: Icon(Icons.favorite, color: ColorConstants.whiteColor),
+                )
+              : null,
+    );
   }
 
-  void unselectAll() {
-    setState(() {
-      favContacts.clear();
-    });
+  Widget customContactAppBar() {
+    return Container(
+      padding: EdgeInsets.only(
+        top: MediaQuery.of(context).padding.top,
+        bottom: 12.h,
+        left: 16.w,
+        right: 16.w,
+      ),
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          colors: [ColorConstants.blue, ColorConstants.purple],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              if (Navigator.canPop(context))
+                IconButton(
+                  onPressed: () => Navigator.pop(context),
+                  icon: Icon(
+                    Icons.arrow_back_ios_new,
+                    color: ColorConstants.whiteColor,
+                    size: 22.sp,
+                  ),
+                ),
+              if (widget.showCheckbox) ...[
+                Text(
+                  TextConstants.addtofavourite,
+                  style: TextStyle(
+                    color: ColorConstants.whiteColor,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 20.sp,
+                  ),
+                ),
+                IconButton(
+                  onPressed: () {
+                    selectAllItems(
+                      Hive.box<ContactModel>('contacts').values.toList(),
+                    );
+                  },
+                  icon: Icon(
+                    allSelect ? Icons.favorite : Icons.favorite_border,
+                    color: ColorConstants.whiteColor,
+                    size: 26.sp,
+                  ),
+                ),
+              ],
+            ],
+          ),
+          SizedBox(height: 12.h),
+          Container(
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(10.r),
+              border: Border.all(color: ColorConstants.whiteColor),
+            ),
+            child: TextField(
+              controller: _searchController,
+              style: TextStyle(color: ColorConstants.whiteColor),
+              onChanged: (_) => setState(() {}),
+              decoration: InputDecoration(
+                hintText: TextConstants.searchContacts,
+                hintStyle: TextStyle(
+                  color: ColorConstants.whiteColor,
+                  fontSize: 17.sp,
+                ),
+                prefixIcon: Icon(
+                  Icons.search,
+                  color: ColorConstants.whiteColor,
+                  size: 20.sp,
+                ),
+                border: InputBorder.none,
+                contentPadding: EdgeInsets.symmetric(vertical: 12.h),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }

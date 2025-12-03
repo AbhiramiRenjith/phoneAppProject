@@ -10,10 +10,9 @@ import 'package:phoneapp/screen/bottomnavigation.dart';
 import 'package:provider/provider.dart';
 
 
-void main() async {
+void main() async { 
   WidgetsFlutterBinding.ensureInitialized();
-   await Hive.initFlutter();
-  
+  await Hive.initFlutter(); 
   Hive.registerAdapter(CallModelAdapter());
   await Hive.openBox<CallModel>('call_log'); 
    Hive.registerAdapter(ContactModelAdapter()); 
@@ -28,21 +27,25 @@ void main() async {
       ],
       child: const MyApp(),
     ),
-  );
-  
+  ); 
 }
-
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
+
   @override
   Widget build(BuildContext context) {
-   
-   return ScreenUtilInit(
-      designSize: const Size(360, 690),
-      builder: (_, child) => MaterialApp(
-        debugShowCheckedModeBanner: false,
-        home: BottomnavigationScreen(),
-      ),
+    return ScreenUtilInit(
+      designSize: const Size(390, 844),
+      minTextAdapt: true,
+      splitScreenMode: true,
+      builder: (_, child) {
+        return MaterialApp(
+          debugShowCheckedModeBanner: false,
+          home: BottomnavigationScreen()
+        );
+      },
     );
   }
 }
+
+

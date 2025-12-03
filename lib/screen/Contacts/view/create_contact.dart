@@ -2,11 +2,13 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'package:phoneapp/constants/color_constants.dart';
 import 'package:phoneapp/constants/text_constants.dart';
 import 'package:phoneapp/screen/Contacts/model/contacts_model.dart';
 import 'package:provider/provider.dart';
 import '../provider/contact_provider.dart';
+import 'package:flutter_contacts/flutter_contacts.dart';
 
 class CreateContactScreen extends StatefulWidget {
   const CreateContactScreen({super.key});
@@ -48,86 +50,66 @@ class _CreateContactScreenState extends State<CreateContactScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: ColorConstants.whiteColor,
-      appBar: AppBar(
-        backgroundColor: ColorConstants.transparent,
-        elevation: 0,
-        flexibleSpace: Container(
-          decoration: const BoxDecoration(
-            gradient: LinearGradient(
-              colors: [ColorConstants.blue, ColorConstants.purple],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ),
-          ),
-        ),
-        leading: IconButton(
-          onPressed: () => Navigator.pop(context),
-          icon: const Icon(Icons.arrow_back_ios, color: ColorConstants.whiteColor),
-        ),
-        title:  Text(
-          TextConstants.calldeleted,
-          style: TextStyle(
-            fontSize: 26.sp,
-            color: ColorConstants.whiteColor,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        centerTitle: true,
-      ),
-      body: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: SingleChildScrollView(
-          child: Column(
-            children: [
-              GestureDetector(
-                onTap: showImagePickerSheet,
-                child: CircleAvatar(
-                  radius: 50.r,
-                  backgroundColor: ColorConstants.greyColor,
-                  backgroundImage: pickedImage != null
-                      ? FileImage(pickedImage!)
-                      : null,
-                  child: pickedImage == null
-                      ? const Icon(Icons.camera_alt, size: 35)
-                      : null,
-                ),
-              ),
-               SizedBox(height: 22.h),
-              Form(
-                key: _formKey,
-                child: Column(
-                  children: [
-                    ListTile(
-                      leading: const Icon(Icons.person),
-                      title: Row(
+      body: Column(
+        children: [
+          customAppBar(),
+
+          Expanded(
+            child: SingleChildScrollView(
+              child: Column(
+                children: [
+                  SizedBox(height: 50),
+
+                  GestureDetector(
+                    onTap: showImagePickerSheet,
+                    child: CircleAvatar(
+                      radius: 50.w,
+                      backgroundColor: ColorConstants.greyColor,
+                      backgroundImage: pickedImage != null
+                          ? FileImage(pickedImage!)
+                          : null,
+                      child: pickedImage == null
+                          ? Icon(
+                              Icons.camera_alt,
+                              size: 50.w,
+                              color: ColorConstants.blaclColor,
+                            )
+                          : null,
+                    ),
+                  ),
+
+                  SizedBox(height: 22.h),
+
+                  Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Form(
+                      key: _formKey,
+                      child: Column(
                         children: [
-                          Expanded(
-                            child: TextFormField(
+                          ListTile(
+                            leading: Icon(Icons.person, size: 20.sp),
+                            title: TextFormField(
                               controller: _nameController,
-                              decoration: const InputDecoration(
+                              decoration: InputDecoration(
                                 labelText: TextConstants.name,
+                                labelStyle: TextStyle(fontSize: 15.sp),
                               ),
                             ),
                           ),
-                        ],
-                      ),
-                    ),
+                          SizedBox(height: 5.h),
 
-                    ListTile(
-                      leading: const Icon(Icons.phone),
-                      title: Row(
-                        children: [
-                          Expanded(
-                            child: TextFormField(
+                          ListTile(
+                            leading: Icon(Icons.phone, size: 20.sp),
+                            title: TextFormField(
                               controller: _numberController,
-                              decoration: const InputDecoration(
+                              decoration: InputDecoration(
                                 labelText: TextConstants.phoneNumber,
+                                labelStyle: TextStyle(fontSize: 15.sp),
                               ),
-
                               keyboardType: TextInputType.phone,
                               validator: (value) {
                                 if (value == null || value.isEmpty) {
-                                  return 'phone number filed is empty';
+                                  return 'phone number field is empty';
                                 }
                                 return null;
                               },
@@ -136,68 +118,57 @@ class _CreateContactScreenState extends State<CreateContactScreen> {
                         ],
                       ),
                     ),
+                  ),
 
-                    ListTile(
-                      leading: const Icon(Icons.email),
-                      title: Row(
-                        children: [
-                          Expanded(
-                            child: TextFormField(
-                              decoration: const InputDecoration(
-                                labelText: TextConstants.email,
-                              ),
+                  SizedBox(height: 50),
+                  
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      Container(
+                        decoration: const BoxDecoration(
+                          gradient: LinearGradient(
+                            colors: [
+                              ColorConstants.blue,
+                              ColorConstants.purple,
+                            ],
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                          ),
+                          borderRadius: BorderRadius.all(Radius.circular(5)),
+                        ),
+                        child: ElevatedButton(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.transparent,
+                            shadowColor: Colors.transparent,
+                            minimumSize: Size(100.w, 50.h),
+                          ),
+                          onPressed: validation,
+                          child: Text(
+                            TextConstants.save,
+                            style: TextStyle(
+                              color: ColorConstants.whiteColor,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 12.sp,
                             ),
                           ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-
-              SizedBox(height: 50),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  Container(
-                    decoration: const BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: [ColorConstants.blue, ColorConstants.purple],
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                      ),
-                      borderRadius: BorderRadius.all(Radius.circular(5)),
-                    ),
-                    child: ElevatedButton(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: ColorConstants.transparent,
-                        shadowColor: ColorConstants.transparent,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(5),
                         ),
                       ),
-                      onPressed: () {
-                        validation();
-                      },
-                      child: const Text(
-                        TextConstants.save,
-                        style: TextStyle(
-                          color: ColorConstants.whiteColor,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
+                      SizedBox(width: 10.w),
+                    ],
                   ),
+
+                  SizedBox(height: 20),
                 ],
               ),
-            ],
+            ),
           ),
-        ),
+        ],
       ),
     );
   }
 
-  void validation() {
+  void validation() async {
     if (_formKey.currentState!.validate()) {
       final contact = ContactModel(
         name: _nameController.text,
@@ -206,8 +177,21 @@ class _CreateContactScreenState extends State<CreateContactScreen> {
       );
 
       Provider.of<ContactProvider>(context, listen: false).addContact(contact);
+      saveToGoogleContact();
+
+      if (!mounted) return;
       Navigator.pop(context);
     }
+  }
+
+  Future<bool> requestContactPermission() async {
+    var status = await Permission.contacts.status;
+
+    if (status.isDenied) {
+      status = await Permission.contacts.request();
+    }
+
+    return status.isGranted;
   }
 
   void showImagePickerSheet() {
@@ -240,7 +224,10 @@ class _CreateContactScreenState extends State<CreateContactScreen> {
                 },
               ),
               ListTile(
-                leading: const Icon(Icons.camera_alt, color: ColorConstants.greenColor),
+                leading: const Icon(
+                  Icons.camera_alt,
+                  color: ColorConstants.greenColor,
+                ),
                 title: const Text(TextConstants.takePhoto),
                 onTap: () {
                   Navigator.pop(context);
@@ -251,6 +238,62 @@ class _CreateContactScreenState extends State<CreateContactScreen> {
           ),
         );
       },
+    );
+  }
+
+  Future<void> saveToGoogleContact() async {
+    if (await FlutterContacts.requestPermission()) {
+      final newContact = Contact()
+        ..name.first = _nameController.text
+        ..phones = [Phone(_numberController.text)];
+      if (pickedImage != null) {
+        newContact.photo = pickedImage!.readAsBytesSync();
+      }
+
+      await newContact.insert();
+    }
+  }
+
+  Widget customAppBar() {
+    return Container(
+      padding: EdgeInsets.only(
+        top: 45.h,
+        bottom: 15.h,
+        left: 15.w,
+        right: 15.w,
+      ),
+      width: double.infinity,
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          colors: [ColorConstants.blue, ColorConstants.purple],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+      ),
+      child: Row(
+        children: [
+          IconButton(
+            onPressed: () {
+              Navigator.pop(context);
+            },
+            icon: Icon(
+              Icons.arrow_back_ios,
+              size: 20.sp,
+              color: ColorConstants.whiteColor,
+            ),
+          ),
+
+          Text(
+            TextConstants.createContact,
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: 26.sp,
+              color: ColorConstants.whiteColor,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

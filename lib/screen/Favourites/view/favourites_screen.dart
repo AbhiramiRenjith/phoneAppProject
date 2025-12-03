@@ -22,144 +22,172 @@ class FavouriteScreen extends StatefulWidget {
 class _FavouriteScreenState extends State<FavouriteScreen> {
   @override
   Widget build(BuildContext context) {
-  
     final provider = Provider.of<FavouriteProvider>(context, listen: false);
-    final contactProvider = Provider.of<ContactProvider>(context, listen: false);
+    final contactProvider = Provider.of<ContactProvider>(
+      context,
+      listen: false,
+    );
 
     return Scaffold(
       backgroundColor: ColorConstants.whiteColor,
-      appBar: AppBar(
-           backgroundColor: ColorConstants.transparent,
-        elevation: 0,
-        flexibleSpace: Container(
-          decoration: const BoxDecoration(
-            gradient: LinearGradient(
-              colors: [ColorConstants.blue, ColorConstants.purple],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
+
+      body: Column(
+        children: [
+          customFavouriteAppBar(),
+
+          Expanded(
+            child: ValueListenableBuilder(
+              valueListenable: provider.favouriteBox.listenable(),
+              builder: (context, Box<ContactModel> box, _) {
+                final favourites = box.values.toList();
+                if (favourites.isEmpty) {
+                  return  Center(
+                    child: Text(TextConstants.nofavouritecontacts,style: TextStyle(fontSize: 20.sp),),
+                  );
+                }
+
+                return ListView.builder(
+                  itemCount: favourites.length,
+                  itemBuilder: (context, index) {
+                    final fav = favourites[index];
+
+                    return Slidable(
+                      endActionPane: ActionPane(
+                        motion: const DrawerMotion(),
+                        children: [
+                          SlidableAction(
+                            onPressed: (context) {
+                              makeCall(fav);
+                            },
+                            foregroundColor: ColorConstants.whiteColor,
+                            backgroundColor: ColorConstants.greenColor,
+                            icon: Icons.call,
+                            label: TextConstants.call,
+                          ),
+                          SlidableAction(
+                            onPressed: (context) {
+                              provider.deleteFavourite(fav);
+
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text(TextConstants.calldeleted),
+                                ),
+                              );
+                            },
+                            foregroundColor: ColorConstants.whiteColor,
+                            backgroundColor: ColorConstants.lightred,
+                            icon: Icons.delete,
+                            label: TextConstants.delete,
+                          ),
+                        ],
+                      ),
+                      child: ListTile(
+                        leading: fav.profile.isEmpty
+                            ? CircleAvatar(
+                                radius: 30.r,
+                                backgroundColor: ColorConstants.blue,
+                                child: FittedBox(
+                                  child: Text(
+                                    fav.name.isNotEmpty
+                                        ? fav.name[0].toUpperCase()
+                                        : "?",
+                                    style: TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 22.sp,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ),
+                              )
+                            : CircleAvatar(
+                                backgroundImage: fav.profile.startsWith("/")
+                                    ? FileImage(File(fav.profile))
+                                    : AssetImage(fav.profile) as ImageProvider,
+                              ),
+                        title: Text(
+                          fav.name,
+                          style: TextStyle(fontSize: 12.sp),
+                        ),
+                        subtitle: Text(
+                          fav.number,
+                          style: TextStyle(fontSize: 12.sp),
+                        ),
+                      ),
+                    );
+                  },
+                );
+              },
             ),
           ),
-        ),
-        title: Text(
-         TextConstants.favourites,
-          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 28.sp,color: ColorConstants.whiteColor),
-        ),
-        
-       
+        ],
       ),
-      body: ValueListenableBuilder(
-        valueListenable: provider.favouriteBox.listenable(),
-        builder: (context, Box<ContactModel> box, _) {
-          final favourites = box.values.toList();
-          if (favourites.isEmpty) {
-            return const Center(child: Text(TextConstants.noContactFount));
-          }
 
-          return ListView.builder(
-            itemCount: box.values.length,
-            itemBuilder: (context, index) {
-              final fav = favourites[index];
-
-              return Slidable(
-                endActionPane: ActionPane(
-                  motion: const DrawerMotion(),
-
-                  children: [
-                    SlidableAction(
-                      onPressed: (context) {
-                        makeCall(fav);
-                      },
-
-                      foregroundColor: ColorConstants.whiteColor,
-                      backgroundColor: ColorConstants.greenColor,
-                      icon: Icons.call,
-                    ),
-                    SlidableAction(
-                      onPressed: (context) {
-                        provider.deleteFavourite(fav);
-
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text(TextConstants.calldeleted)),
-                        );
-                      },
-
-                      foregroundColor: ColorConstants.whiteColor,
-                      backgroundColor: ColorConstants.lightred,
-                      icon: Icons.delete,
-                    ),
-                  ],
-                ),
-
-                child: ListTile(
-                  leading: fav.profile.isEmpty
-                      ? CircleAvatar(
-                          backgroundColor: Colors.blue.shade700,
-                          child: Text(
-                            fav.name.isNotEmpty
-                                ? fav.name[0].toUpperCase()
-                                : "?",
-                            style:  TextStyle(
-                              color: Colors.white,
-                              fontSize: 22.sp,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        )
-                      : CircleAvatar(
-                          backgroundImage: fav.profile.startsWith("/")
-                              ? FileImage(File(fav.profile))
-                              : AssetImage(fav.profile) as ImageProvider,
-                        ),
-
-                  title: Text(fav.name),
-                  subtitle: Text(fav.number),
+      floatingActionButton: Container(
+        decoration: const BoxDecoration(
+          shape: BoxShape.circle,
+          gradient: LinearGradient(
+            colors: [ColorConstants.blue, ColorConstants.purple],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+        ),
+        child: FloatingActionButton(
+          shape: const CircleBorder(),
+          backgroundColor: Colors.transparent,
+          onPressed: () {
+            if (contactProvider.contactBox.values.isNotEmpty) {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => const ContactScreen(showCheckbox: true),
                 ),
               );
-            },
-          );
-        },
+            } else {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text(TextConstants.nocontacts)),
+              );
+            }
+          },
+          child: const Icon(Icons.star, color: ColorConstants.whiteColor),
+        ),
       ),
-      floatingActionButton: Container(
-         decoration: const BoxDecoration(
-            shape: BoxShape.circle,
-            gradient: LinearGradient(
-              colors: [ColorConstants.blue, ColorConstants.purple],   
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
+    );
+  }
+
+  Widget customFavouriteAppBar() {
+    return Container(
+      padding: EdgeInsets.only(
+        top: 45.h,
+        bottom: 15.h,
+        left: 15.w,
+        right: 15.w,
+      ),
+      width: double.infinity,
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          colors: [ColorConstants.blue, ColorConstants.purple],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+      ),
+      child: Row(
+        children: [
+          Text(
+            TextConstants.favourites,
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: 26.sp,
+              color: ColorConstants.whiteColor,
+              fontWeight: FontWeight.bold,
             ),
           ),
-        child: FloatingActionButton(
-          shape: CircleBorder(),
-          backgroundColor: ColorConstants.transparent,
-          onPressed: () {
-            if(contactProvider.contactBox.values.isNotEmpty){
-               Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (_) => const ContactScreen(showCheckbox: true),
-              ),
-            );
-        
-            }else{
-              ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(TextConstants.nocontacts)));
-            }
-           
-          },
-          child: Icon(Icons.star, color: ColorConstants.whiteColor),
-        ),
+        ],
       ),
     );
   }
 
   void makeCall(ContactModel contact) async {
     if (contact.number.isEmpty) return;
-
-    try {
-      await FlutterPhoneDirectCaller.callNumber(contact.number);
-      if (!mounted) return;
-
-
-      // ignore: empty_catches
-    } catch (e) {}
+    await FlutterPhoneDirectCaller.callNumber(contact.number);
   }
 }

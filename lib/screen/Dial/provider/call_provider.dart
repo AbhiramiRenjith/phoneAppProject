@@ -21,16 +21,15 @@ final Box<CallModel> _box = Hive.box<CallModel>('call_log');
   }
 
   void deleteCall(CallModel call) {
- 
-  final keyToDelete = _box.keys.firstWhere(
-    (key) => _box.get(key)?.number == call.number,
-    orElse: () => null,
-  );
+  // final keyToDelete = _box.keys.firstWhere(
+  //   (key) => _box.get(key)?.number == call.number,
+  //   orElse: () => null,
+  // );
 
-  if (keyToDelete != null) {
-    _box.delete(keyToDelete);
-  }
-  //call.delete(); 
+  // if (keyToDelete != null) {
+  //   _box.delete(keyToDelete);
+  // }
+  call.delete(); 
   notifyListeners();
   
 }

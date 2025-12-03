@@ -18,7 +18,6 @@ import 'package:share_plus/share_plus.dart';
 
 class DialScreen extends StatefulWidget {
   const DialScreen({super.key});
-
   @override
   State<DialScreen> createState() => _DialScreenState();
 }
@@ -26,152 +25,78 @@ class DialScreen extends StatefulWidget {
 class _DialScreenState extends State<DialScreen> {
   String typedNumber = "";
   bool selectionMode = false;
-  bool selectAll = false;
   List<CallModel> selectedCalls = [];
   bool allSelect = false;
   int simCount = 1;
   bool showShare = false;
   CallModel? shareNumber;
   bool showDialer = true;
-
+  bool showCheckbox = true;
   @override
   void initState() {
     super.initState();
-    detectSimCount();
-    if (showDialer) {
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) showDialerBottomSheet();
-    });
-  } 
+    initDialScreen();
+  }
+
+  Future<void> initDialScreen() async {
+    await detectSimCount();
+
+    if (mounted && showDialer) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        showDialerBottomSheet();
+      });
+    }
   }
 
   Future<void> detectSimCount() async {
-    final deviceInfo = DeviceInfoPlugin();
-    final androidInfo = await deviceInfo.androidInfo;
+    try {
+      final deviceInfo = DeviceInfoPlugin();
+      final androidInfo = await deviceInfo.androidInfo;
+      bool dualSim = androidInfo.supportedAbis.length > 1;
 
-    bool isDualSim =
-        androidInfo.supportedAbis.length > 1 ||
-        androidInfo.version.sdkInt >= 22;
-
-if (!mounted) return;
-    setState(() {
-      simCount = isDualSim ? 2 : 1;
-    });
+      if (!mounted) return;
+      setState(() {
+        simCount = dualSim ? 2 : 1;
+      });
+    } catch (_) {}
   }
 
   @override
   Widget build(BuildContext context) {
     final callhistoryProvider = Provider.of<CallProvider>(context);
-    final callProvider = Provider.of<CallProvider>(context);
     return Scaffold(
       backgroundColor: ColorConstants.whiteColor,
-      appBar: AppBar(
-          backgroundColor: ColorConstants.transparent,
-        elevation: 0,
-        flexibleSpace: Container(
-          decoration: const BoxDecoration(
-            gradient: LinearGradient(
-              colors: [ColorConstants.blue, ColorConstants.purple],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ),
-          ),
-        ),
-        title: Text(
-          selectionMode ? TextConstants.selectCall : TextConstants.dial,
-          style:  TextStyle(
-            fontWeight: FontWeight.bold,
-            color: ColorConstants.whiteColor,
-            fontSize: 28.sp,
-          ),
-        ),
-
-         leading: showShare
-      ? IconButton(
-          icon: const Icon(Icons.close,color: ColorConstants.whiteColor,),
-          onPressed: () {
-            setState(() {
-              showShare = false;
-              shareNumber = null;
-            });
-          },
-        )
-      : null,
-
-  actions: showShare
-      ? [
-
- IconButton(
-          icon: const Icon(Icons.share, color: ColorConstants.whiteColor),
-    onPressed: () {
-  if (shareNumber != null) {
-
-    final contactProvider =
-        Provider.of<ContactProvider>(context, listen: false);
-    final matchedContact = contactProvider.contactBox.values.firstWhere(
-      (element) => element.number == shareNumber!.number,
-      orElse: () => ContactModel(name: "", number: "", profile: ""),
-    );
-    String textToShare;
-
-    if (matchedContact.name.isNotEmpty) {
-      textToShare =
-          "Name: ${matchedContact.name}\nPhone Number: ${shareNumber!.number}";
-    } else {
-      textToShare = "Phone Number: ${shareNumber!.number}";
-    }
-
- 
-    Share.share(textToShare);
-  }
-},
-        ),
-        
-        ]
-      : (selectionMode
-          ? [
-              IconButton(
-                onPressed: unselectAll,
-                icon:  Icon(Icons.close),
-              ),
-              TextButton(
-                onPressed: selectAllItems,
-                child:  Text(
-                  TextConstants.all,
-                  style: TextStyle(
-                    color: ColorConstants.whiteColor,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ),
-            ]
-          : null),
-      ),
-
       body: Column(
         children: [
+          customAppBar(),
           Row(
             mainAxisAlignment: MainAxisAlignment.end,
-            children: [ 
-                 (!showShare&& callProvider.box.values.isEmpty) ? Text("") :   IconButton(
-                        onPressed: () {
-                          setState(() {
-                            selectionMode = true;
-                            selectedCalls.clear();
-                          });
-                        },
-                        icon:  Icon(Icons.check_box_outlined),
-                      ),
+            children: [
+              if (callhistoryProvider.box.values.isNotEmpty && showCheckbox)
+                IconButton(
+                  onPressed: () {
+                    setState(() {
+                      selectionMode = true;
+                      selectedCalls.clear();
+                    });
+                  },
+                  icon: Icon(Icons.check_box_outlined),
+                ),
             ],
           ),
-                    Expanded(
+          Expanded(
             child: ValueListenableBuilder(
-              valueListenable: callProvider.box.listenable(),
+              valueListenable: callhistoryProvider.box.listenable(),
               builder: (context, Box<CallModel> box, _) {
                 final calls = box.values.toList().reversed.toList();
 
                 if (calls.isEmpty) {
-                  return const Center(child: Text(TextConstants.nocallsyet));
+                  return Center(
+                    child: Text(
+                      TextConstants.nocallsyet,
+                      style: TextStyle(fontSize: 20.sp),
+                    ),
+                  );
                 }
 
                 return ListView.builder(
@@ -180,7 +105,7 @@ if (!mounted) return;
                     final call = calls[index];
                     return Slidable(
                       key: Key(call.key.toString()),
-                      endActionPane: !selectionMode
+                      endActionPane: (!selectionMode && !showShare)
                           ? ActionPane(
                               motion: const DrawerMotion(),
                               children: [
@@ -188,8 +113,11 @@ if (!mounted) return;
                                   onPressed: (context) {
                                     callhistoryProvider.deleteCall(call);
                                     ScaffoldMessenger.of(context).showSnackBar(
-                                      const SnackBar(
-                                        content: Text(TextConstants.calldeleted),
+                                      SnackBar(
+                                        content: Text(
+                                          TextConstants.calldeleted,
+                                          style: TextStyle(fontSize: 12.sp),
+                                        ),
                                       ),
                                     );
                                   },
@@ -202,24 +130,29 @@ if (!mounted) return;
                             )
                           : null,
                       child: Padding(
-                        padding:  EdgeInsets.symmetric(horizontal: 10.w),
+                        padding: EdgeInsets.symmetric(horizontal: 10.w),
                         child: Card(
-                          color: shareNumber == call? ColorConstants.lightGrey: ColorConstants.whiteColor,
+                          color: shareNumber == call
+                              ? ColorConstants.lightGrey
+                              : ColorConstants.whiteColor,
                           shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadiusGeometry.circular(2.r),
+                            borderRadius: BorderRadius.circular(2.r),
                           ),
                           child: ListTile(
                             onLongPress: () {
                               setState(() {
-                                 showShare = true;
-                              shareNumber = call;
+                                if (!selectionMode) {
+                                  showShare = true;
+                                  shareNumber = call;
+                                  showCheckbox = !showCheckbox;
+                                }
                               });
-                             
                             },
+
                             leading: selectionMode
                                 ? Checkbox(
                                     value: selectedCalls.contains(call),
-                                    activeColor: ColorConstants.blueColor,
+                                    activeColor: ColorConstants.blue,
                                     onChanged: (value) {
                                       setState(() {
                                         if (value == true) {
@@ -254,7 +187,7 @@ if (!mounted) return;
                                   matchedContact.name.isNotEmpty
                                       ? matchedContact.name
                                       : call.number,
-                                  style:  TextStyle(
+                                  style: TextStyle(
                                     fontSize: 18.sp,
                                     fontWeight: FontWeight.w600,
                                   ),
@@ -292,14 +225,16 @@ if (!mounted) return;
                                     matchedContact.name.isNotEmpty
                                         ? Text(
                                             call.number,
-                                            style:  TextStyle(
+                                            style: TextStyle(
                                               fontSize: 13.sp,
+                                              color: ColorConstants.greyColor,
                                             ),
                                           )
                                         : Text(
                                             TextConstants.unknownlocation,
                                             style: TextStyle(
                                               color: ColorConstants.greyColor,
+                                              fontSize: 13.sp,
                                             ),
                                           ),
                                   ],
@@ -309,17 +244,17 @@ if (!mounted) return;
 
                             trailing: Text(
                               DateFormat('hh.mm a').format(call.time),
-                              style:  TextStyle(
+                              style: TextStyle(
                                 fontWeight: FontWeight.bold,
                                 fontSize: 14.sp,
                                 color: ColorConstants.greyColor,
                               ),
                             ),
 
-                            onTap: selectionMode
+                            onTap: (!selectionMode && !showShare)
                                 ? () {
                                     setState(() {
-                                      callProvider.deleteCall(call);
+                                      makeCall(call.number, 0);
                                     });
                                   }
                                 : null,
@@ -349,15 +284,18 @@ if (!mounted) return;
           ? FloatingActionButton(
               shape: const CircleBorder(),
               backgroundColor: ColorConstants.greenColor,
-              onPressed: (){
+              onPressed: () {
                 setState(() {
                   showDialerBottomSheet();
-                showDialer = !showDialer;
-                  
+                  showShare = false;
+                  shareNumber = null;
+                  showDialer = !showDialer;
                 });
-                
               },
-              child: const Icon(Icons.dialpad, color: ColorConstants.whiteColor),
+              child: const Icon(
+                Icons.dialpad,
+                color: ColorConstants.whiteColor,
+              ),
             )
           : null,
     );
@@ -403,121 +341,294 @@ if (!mounted) return;
   }
 
   void showDialerBottomSheet() {
-    
     showModalBottomSheet(
       context: context,
-      backgroundColor: ColorConstants.whiteColor,
       isScrollControlled: true,
+      backgroundColor: ColorConstants.whiteColor,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
       builder: (_) {
         return StatefulBuilder(
           builder: (context, setBottomState) {
-            return Container(
-              height: MediaQuery.of(context).size.height * 0.70,
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                children: [
-                  Text(
-                    typedNumber,
-                    style:  TextStyle(
-                      fontSize: 34.sp,
-                      fontWeight: FontWeight.bold,
-                      color: ColorConstants.blaclColor,
-                    ),
+            return SafeArea(
+              child: Padding(
+                padding: EdgeInsets.only(
+                  bottom: MediaQuery.of(context).viewInsets.bottom,
+                ),
+                child: Container(
+                  constraints: BoxConstraints(
+                    maxHeight: MediaQuery.of(context).size.height * 0.90,
                   ),
-
-                   SizedBox(height: 20.h),
-                  GridView.count(
-                    shrinkWrap: true,
-                    physics: const NeverScrollableScrollPhysics(),
-                    crossAxisCount: 3,
-                    childAspectRatio: 1.2,
-                    children: keys.map((key) {
-                      return Container(
-                        margin: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(
-                          color: ColorConstants.lightBlue,
-                          borderRadius: BorderRadius.circular(18),
-                        ),
-                        child: TextButton(
-                          onPressed: () {
-                            setState(() => typedNumber += key[TextConstants.digit]!);
-                            setBottomState(() {});
-                          },
-                          onLongPress: () {
-                            if (key[TextConstants.digit] == '0') {
-                              setState(() {
-                                typedNumber += '+';
-                              });
-                              setBottomState(() {});
-                            }
-                          },
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Text(
-                                key[TextConstants.digit]!,
-                                style:  TextStyle(
-                                  fontSize: 28.sp,
-                                  fontWeight: FontWeight.bold,
-                                  color: ColorConstants.blaclColor,
-                                ),
+                  child: SingleChildScrollView(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        // Padding(
+                        //   padding: const EdgeInsets.all(16),
+                        //   child: Text(
+                        //     typedNumber,
+                        //     style: TextStyle(
+                        //       fontSize: 34.sp,
+                        //       fontWeight: FontWeight.bold,
+                        //       color: ColorConstants.blaclColor,
+                        //     ),
+                        //   ),
+                        // ),
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 16),
+                          child: TextField(
+                            controller: TextEditingController(text: typedNumber)
+                              ..selection = TextSelection.fromPosition(
+                                TextPosition(offset: typedNumber.length),
                               ),
-
-                              Text(
-                                key[TextConstants.letters]!,
-                                style: TextStyle(
-                                  fontSize: 12.sp,
-                                  color: ColorConstants.greyColor,
-                                ),
-                              ),
-                            ],
+                            readOnly: true, // disables system keyboard
+                            showCursor: true,
+                            enableInteractiveSelection:
+                                true, // allows cursor movement and selection
+                            onTap: () {
+                              // optional: set cursor at the end on tap
+                              final controller = TextEditingController(
+                                text: typedNumber,
+                              );
+                              controller.selection = TextSelection.fromPosition(
+                                TextPosition(offset: typedNumber.length),
+                              );
+                            },
+                            style: TextStyle(
+                              fontSize: 34.sp,
+                              fontWeight: FontWeight.bold,
+                              color: ColorConstants.blaclColor,
+                            ),
+                            decoration: const InputDecoration(
+                              border: InputBorder.none,
+                            ),
+                            textAlign: TextAlign.center,
+                            cursorColor: ColorConstants.greenColor,
                           ),
                         ),
-                      );
-                    }).toList(),
+                        GridView.count(
+                          padding: EdgeInsets.symmetric(horizontal: 16.w),
+                          shrinkWrap: true,
+                          physics: const NeverScrollableScrollPhysics(),
+                          crossAxisCount: 3,
+                          childAspectRatio: 1.2,
+                          children: keys.map((key) {
+                            return Container(
+                              margin: const EdgeInsets.all(6),
+                              decoration: BoxDecoration(
+                                color: ColorConstants.lightBlue,
+                                borderRadius: BorderRadius.circular(18),
+                              ),
+                              child: TextButton(
+                                onPressed: () {
+                                  typedNumber += key[TextConstants.digit]!;
+                                  setBottomState(() {});
+                                },
+                                onLongPress: () {
+                                  if (key[TextConstants.digit] == '0') {
+                                    typedNumber += '+';
+                                    setBottomState(() {});
+                                  }
+                                },
+                                child: Column(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Text(
+                                      key[TextConstants.digit]!,
+                                      style: TextStyle(
+                                        fontSize: 28,
+                                        fontWeight: FontWeight.bold,
+                                        color: ColorConstants.blaclColor,
+                                      ),
+                                    ),
+                                    SizedBox(height: 4),
+                                    Text(
+                                      key[TextConstants.letters]!,
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        color: ColorConstants.greyColor,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            );
+                          }).toList(),
+                        ),
+
+                        SizedBox(height: 10.h),
+
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            SizedBox(width: 20.sp),
+
+                            SizedBox(width: 20.sp),
+
+                            if (simCount == 1) ...[
+                              Expanded(
+                                child: callButton(TextConstants.sim1, 0),
+                              ),
+                            ] else ...[
+                              Expanded(
+                                child: callButton(TextConstants.sim1, 0),
+                              ),
+                              SizedBox(width: 5.w),
+                              Expanded(
+                                child: callButton(TextConstants.sim2, 1),
+                              ),
+                            ],
+                            SizedBox(width: 10.w),
+
+                            IconButton(
+                              onPressed: () {
+                                if (typedNumber.isNotEmpty) {
+                                  typedNumber = typedNumber.substring(
+                                    0,
+                                    typedNumber.length - 1,
+                                  );
+                                  setBottomState(() {});
+                                }
+                              },
+                              icon: Icon(Icons.backspace_outlined, size: 28.sp),
+                            ),
+                            SizedBox(width: 20.sp),
+                          ],
+                        ),
+
+                        const SizedBox(height: 20),
+                      ],
+                    ),
                   ),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(
-                        Icons.menu,
-                        size: 28.sp,
-                        color: ColorConstants.blaclColor,
-                      ),
-
-                       SizedBox(width: 10.w),
-
-                      callButton(TextConstants.sim1, 0),
-                       SizedBox(width: 5.w),
-                      callButton(TextConstants.sim2, 1),
-
-                      SizedBox(width: 10.w),
-
-                      IconButton(
-                        onPressed: () {
-                          if (typedNumber.isNotEmpty) {
-                            setState(() {
-                              typedNumber = typedNumber.substring(
-                                0,
-                                typedNumber.length - 1,
-                              );
-                            });
-                            setBottomState(() {});
-                          }
-                        },
-                        icon:  Icon(Icons.backspace_outlined, size: 28.sp),
-                      ),
-                    ],
-                  ),
-                ],
+                ),
               ),
             );
           },
         );
       },
+    );
+  }
+
+  Widget customAppBar() {
+    return Container(
+      padding: EdgeInsets.only(
+        top: MediaQuery.of(context).padding.top + 10,
+        bottom: 12.h,
+        left: 16.w,
+        right: 16.w,
+      ),
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          colors: [ColorConstants.blue, ColorConstants.purple],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          if (showShare)
+            IconButton(
+              onPressed: () {
+                setState(() {
+                  showShare = false;
+                  shareNumber = null;
+                  showCheckbox = !showCheckbox;
+                });
+              },
+              icon: Icon(
+                Icons.close,
+                color: ColorConstants.whiteColor,
+                size: 28.sp,
+              ),
+            )
+          else if (selectionMode)
+            IconButton(
+              onPressed: () {
+                setState(() {
+                  unselectAll();
+                });
+              },
+              icon: Icon(
+                Icons.close,
+                color: ColorConstants.whiteColor,
+                size: 26.sp,
+              ),
+            )
+          else
+            const SizedBox(width: 30),
+
+          Expanded(
+            child: Text(
+              showShare
+                  ? "Share Contact"
+                  : selectionMode
+                  ? TextConstants.selectCall
+                  : "",
+
+              textAlign: TextAlign.center,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: 26.sp,
+                color: ColorConstants.whiteColor,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+
+          Row(
+            children: [
+              if (showShare)
+                IconButton(
+                  onPressed: () {
+                    if (shareNumber != null) {
+                      final contactProvider = Provider.of<ContactProvider>(
+                        context,
+                        listen: false,
+                      );
+
+                      final matchedContact = contactProvider.contactBox.values
+                          .firstWhere(
+                            (e) => e.number == shareNumber!.number,
+                            orElse: () =>
+                                ContactModel(name: "", number: "", profile: ""),
+                          );
+
+                      String textToShare = matchedContact.name.isNotEmpty
+                          ? "Name: ${matchedContact.name}\nPhone: ${shareNumber!.number}"
+                          : "Phone: ${shareNumber!.number}";
+                      Share.share(textToShare);
+                    }
+                  },
+                  icon: Icon(
+                    Icons.share,
+                    color: ColorConstants.whiteColor,
+                    size: 28.sp,
+                  ),
+                )
+              else if (selectionMode)
+                TextButton(
+                  onPressed: () {
+                    setState(() {
+                      selectAllItems();
+                    });
+                  },
+                  child: Text(
+                    TextConstants.all,
+                    style: TextStyle(
+                      color: ColorConstants.whiteColor,
+                      fontSize: 20.sp,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                )
+              else
+                const SizedBox(width: 30),
+            ],
+          ),
+        ],
+      ),
     );
   }
 
@@ -533,6 +644,7 @@ if (!mounted) return;
     final intent = AndroidIntent(
       action: 'android.intent.action.CALL',
       data: 'tel:$number',
+
       arguments: {"com.android.phone.extra.slot": simSlot},
     );
     await intent.launch();
@@ -544,18 +656,18 @@ if (!mounted) return;
   Widget callButton(String title, int slot) {
     return ElevatedButton.icon(
       style: ElevatedButton.styleFrom(
-        minimumSize:  Size(100.w, 40.h),
-        padding:  EdgeInsets.symmetric(horizontal: 8.w, vertical: 6.h),
+        minimumSize: Size(100.w, 40.h),
+        padding: EdgeInsets.symmetric(horizontal: 8.w, vertical: 6.h),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(5.r)),
         backgroundColor: ColorConstants.greenColor,
       ),
       onPressed: () {
-       if(typedNumber.isNotEmpty) makeCall(typedNumber, slot);
+        if (typedNumber.isNotEmpty) makeCall(typedNumber, slot);
       },
-      icon:  Icon(Icons.call, color: ColorConstants.whiteColor, size: 18.sp),
+      icon: Icon(Icons.call, color: ColorConstants.whiteColor, size: 18.sp),
       label: Text(
         title,
-        style:  TextStyle(
+        style: TextStyle(
           color: ColorConstants.whiteColor,
           fontWeight: FontWeight.bold,
           fontSize: 14.sp,

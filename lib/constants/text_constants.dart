@@ -28,6 +28,9 @@ class TextConstants {
   static const nofavouritecontacts = ' No favourite contacts';
   static const createContact = 'Create Contact';
   static const  nocontacts = 'No contacts';
+  static const addtofavourite = 'Add to favourite';
+  static const call = 'Call';
+ 
   
  
 
