@@ -1,3 +1,5 @@
+
+
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
@@ -6,12 +8,15 @@ import 'package:permission_handler/permission_handler.dart';
 import 'package:phoneapp/constants/color_constants.dart';
 import 'package:phoneapp/constants/text_constants.dart';
 import 'package:phoneapp/screen/Contacts/model/contacts_model.dart';
+import 'package:phoneapp/screen/Dial/model/call_history_model.dart';
 import 'package:provider/provider.dart';
 import '../provider/contact_provider.dart';
 import 'package:flutter_contacts/flutter_contacts.dart';
 
 class CreateContactScreen extends StatefulWidget {
-  const CreateContactScreen({super.key});
+  final bool isEditing;
+  final CallModel? call;
+  const CreateContactScreen({super.key, this.isEditing = false, this.call});
 
   @override
   State<CreateContactScreen> createState() => _CreateContactScreenState();
@@ -45,6 +50,28 @@ class _CreateContactScreenState extends State<CreateContactScreen> {
       });
     }
   }
+@override
+void initState() {
+  super.initState();
+
+  if (widget.isEditing && widget.call != null) {
+    _numberController.text = widget.call!.number;
+    final contactProvider = Provider.of<ContactProvider>(context, listen: false);
+    final contact = contactProvider.contactBox.values.firstWhere(
+      (c) => c.number == widget.call!.number,
+      orElse: () => ContactModel(name: "", number: "", profile: ""),
+    );
+    _nameController.text = contact.name;
+    if (contact.profile.isNotEmpty) {
+      pickedImage = File(contact.profile);
+    }
+  }
+
+ if (!widget.isEditing && widget.call != null) {
+  _numberController.text = widget.call!.number;
+}
+
+}
 
   @override
   Widget build(BuildContext context) {
@@ -168,22 +195,34 @@ class _CreateContactScreenState extends State<CreateContactScreen> {
     );
   }
 
-  void validation() async {
-    if (_formKey.currentState!.validate()) {
-      final contact = ContactModel(
+
+void validation() async {
+  if (_formKey.currentState!.validate()) {
+    final contactProvider = Provider.of<ContactProvider>(context, listen: false);
+
+    if (widget.isEditing && widget.call != null) {
+      final existingContact = contactProvider.contactBox.values.firstWhere(
+        (c) => c.number == widget.call!.number,
+        orElse: () => ContactModel(name: "", number: "", profile: ""),
+      );
+      existingContact.name = _nameController.text;
+      existingContact.number = _numberController.text;
+      existingContact.profile = pickedImage?.path ?? "";
+      await existingContact.save(); 
+    } else {
+      final newContact = ContactModel(
         name: _nameController.text,
         number: _numberController.text,
         profile: pickedImage?.path ?? "",
       );
-
-      Provider.of<ContactProvider>(context, listen: false).addContact(contact);
-      saveToGoogleContact();
-
-      if (!mounted) return;
-      Navigator.pop(context);
+      contactProvider.addContact(newContact);
     }
-  }
+    await saveToGoogleContact();
 
+    if (!mounted) return;
+    Navigator.pop(context);
+  }
+}
   Future<bool> requestContactPermission() async {
     var status = await Permission.contacts.status;
 
@@ -241,7 +280,7 @@ class _CreateContactScreenState extends State<CreateContactScreen> {
     );
   }
 
-  Future<void> saveToGoogleContact() async {
+   Future<void> saveToGoogleContact() async {
     if (await FlutterContacts.requestPermission()) {
       final newContact = Contact()
         ..name.first = _nameController.text
@@ -253,6 +292,46 @@ class _CreateContactScreenState extends State<CreateContactScreen> {
       await newContact.insert();
     }
   }
+
+// Future<void> saveToGoogleContact() async {
+//   if (!await FlutterContacts.requestPermission()) return;
+
+//   final String newName = _nameController.text.trim();
+//   final String newNumber = _numberController.text.trim();
+
+//   Contact? googleContact;
+
+
+//   final contacts = await FlutterContacts.getContacts(
+//     withProperties: true,
+//     withAccounts: true,
+//     withPhoto: true,
+//   );
+//   googleContact = contacts.firstWhere(
+//     (c) => c.phones.any((p) => p.number.replaceAll(" ", "") ==
+//         newNumber.replaceAll(" ", "")),
+//     orElse: () => Contact(),
+//   );
+
+//   final bool editingExisting =
+//       googleContact.accounts.isNotEmpty;
+
+  
+//   googleContact.name.first = newName;
+
+//   googleContact.phones = [Phone(newNumber)];
+
+//   if (pickedImage != null) {
+//     googleContact.photo = pickedImage!.readAsBytesSync();
+//   }
+//   if (editingExisting) {
+//     await googleContact.update();    
+//   } else {
+//     await googleContact.insert();     
+//   }
+// }
+
+
 
   Widget customAppBar() {
     return Container(

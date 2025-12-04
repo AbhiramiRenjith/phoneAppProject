@@ -1,5 +1,3 @@
-
-
 import 'package:hive_flutter/hive_flutter.dart';
 
 part 'call_history_model.g.dart';
@@ -13,7 +11,10 @@ class CallModel extends HiveObject {
   DateTime time;
 
   @HiveField(2)
-  int simSlot; 
+  int simSlot;
 
-  CallModel({required this.number, required this.time, required this.simSlot});
+  @HiveField(3)
+  int duration;
+
+  CallModel({required this.number, required this.time, required this.simSlot,this.duration = 0,});
 }

@@ -20,19 +20,22 @@ class CallModelAdapter extends TypeAdapter<CallModel> {
       number: fields[0] as String,
       time: fields[1] as DateTime,
       simSlot: fields[2] as int,
+      duration: fields[3] as int,
     );
   }
 
   @override
   void write(BinaryWriter writer, CallModel obj) {
     writer
-      ..writeByte(3)
+      ..writeByte(4)
       ..writeByte(0)
       ..write(obj.number)
       ..writeByte(1)
       ..write(obj.time)
       ..writeByte(2)
-      ..write(obj.simSlot);
+      ..write(obj.simSlot)
+      ..writeByte(3)
+      ..write(obj.duration);
   }
 
   @override

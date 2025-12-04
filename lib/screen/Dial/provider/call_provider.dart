@@ -11,9 +11,9 @@ final Box<CallModel> _box = Hive.box<CallModel>('call_log');
  Box<CallModel> get box => _box;
 
 
- void addCall(String number,int simSlot) {
+ void addCall(String number,int simSlot,int duration) {
     final now = DateTime.now();
-    final call = CallModel(number: number, time: now,simSlot: simSlot);
+    final call = CallModel(number: number, time: now,simSlot: simSlot,duration: duration);
     _box.add(call);
     notifyListeners();
    
@@ -21,14 +21,6 @@ final Box<CallModel> _box = Hive.box<CallModel>('call_log');
   }
 
   void deleteCall(CallModel call) {
-  // final keyToDelete = _box.keys.firstWhere(
-  //   (key) => _box.get(key)?.number == call.number,
-  //   orElse: () => null,
-  // );
-
-  // if (keyToDelete != null) {
-  //   _box.delete(keyToDelete);
-  // }
   call.delete(); 
   notifyListeners();
   

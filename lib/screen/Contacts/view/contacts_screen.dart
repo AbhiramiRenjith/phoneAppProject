@@ -76,7 +76,7 @@ class _ContactScreenState extends State<ContactScreen> {
 
     if (!mounted) return;
     final callProvider = Provider.of<CallProvider>(context, listen: false);
-    callProvider.addCall(number, simSlot);
+    callProvider.addCall(number, simSlot,0);
   }
 
   Future<void> sendMessage(String number) async {
@@ -339,7 +339,7 @@ class _ContactScreenState extends State<ContactScreen> {
                   Navigator.push(
                     context,
                     MaterialPageRoute(
-                      builder: (_) => const CreateContactScreen(),
+                      builder: (_) => const CreateContactScreen(isEditing: false,),
                     ),
                   );
                 },

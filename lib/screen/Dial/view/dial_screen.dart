@@ -1,4 +1,5 @@
 import 'package:android_intent_plus/android_intent.dart';
+import 'package:call_log/call_log.dart';
 import 'package:device_info_plus/device_info_plus.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
@@ -13,8 +14,11 @@ import 'package:phoneapp/screen/Dial/provider/call_provider.dart';
 import 'package:phoneapp/screen/Dial/view/keys.dart';
 import 'package:phoneapp/screen/Dial/model/call_history_model.dart';
 import 'package:hive_flutter/hive_flutter.dart';
+import 'package:phoneapp/screen/callDetails/calldetails_screen.dart';
 import 'package:provider/provider.dart';
 import 'package:share_plus/share_plus.dart';
+
+
 
 class DialScreen extends StatefulWidget {
   const DialScreen({super.key});
@@ -41,11 +45,22 @@ class _DialScreenState extends State<DialScreen> {
   Future<void> initDialScreen() async {
     await detectSimCount();
 
-    if (mounted && showDialer) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        showDialerBottomSheet();
-      });
-    }
+    // if (mounted && showDialer) {
+    //   WidgetsBinding.instance.addPostFrameCallback((_) {
+    //     showDialerBottomSheet();
+    //   });
+    // }
+  }
+    String formatDuration(int seconds) {
+    final hours = seconds ~/ 3600;
+    final minutes = (seconds % 3600) ~/ 60;
+    final secs = seconds % 60;
+
+    String result = '';
+    if (hours > 0) result += '$hours:';
+    result += '${minutes.toString().padLeft(2, '0')}:';
+    result += secs.toString().padLeft(2, '0');
+    return '$result s';
   }
 
   Future<void> detectSimCount() async {
@@ -241,14 +256,35 @@ class _DialScreenState extends State<DialScreen> {
                                 );
                               },
                             ),
+                            trailing: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                
+                                Text(
+                                  DateFormat('hh.mm a').format(call.time),
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 14.sp,
+                                    color: ColorConstants.greyColor,
+                                  ),
+                                ),
 
-                            trailing: Text(
-                              DateFormat('hh.mm a').format(call.time),
-                              style: TextStyle(
-                                fontWeight: FontWeight.bold,
-                                fontSize: 14.sp,
-                                color: ColorConstants.greyColor,
-                              ),
+                                IconButton(
+                                  onPressed: () {
+                                    Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (_) =>
+                                            CallDetailsPage(call: call,simCount:simCount),
+                                      ),
+                                    );
+                                  },
+                                  icon: Icon(
+                                    Icons.details,
+                                    color: ColorConstants.greyColor,
+                                  ),
+                                ),
+                              ],
                             ),
 
                             onTap: (!selectionMode && !showShare)
@@ -300,6 +336,11 @@ class _DialScreenState extends State<DialScreen> {
           : null,
     );
   }
+
+
+
+
+
 
   void selectAllItems() {
     final callhistoryProvider = Provider.of<CallProvider>(
@@ -364,7 +405,6 @@ class _DialScreenState extends State<DialScreen> {
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                     
                         Padding(
                           padding: const EdgeInsets.symmetric(horizontal: 16),
                           child: TextField(
@@ -372,12 +412,10 @@ class _DialScreenState extends State<DialScreen> {
                               ..selection = TextSelection.fromPosition(
                                 TextPosition(offset: typedNumber.length),
                               ),
-                            readOnly: true, 
+                            readOnly: true,
                             showCursor: true,
-                            enableInteractiveSelection:
-                                true, 
+                            enableInteractiveSelection: true,
                             onTap: () {
-                            
                               final controller = TextEditingController(
                                 text: typedNumber,
                               );
@@ -639,17 +677,45 @@ class _DialScreenState extends State<DialScreen> {
     );
     await intent.launch();
     if (!mounted) return;
+      await Future.delayed(const Duration(seconds: 5));
+      // Fetch last call log for this number after making the call
+  Iterable<CallLogEntry> entries = await CallLog.query();
+  CallLogEntry? lastCall;
+  for (var entry in entries) {
+    if (entry.number == number) {
+      lastCall = entry;
+      break;
+    }
+  }
+  int duration = lastCall?.duration ?? 0;
     final callProvider = Provider.of<CallProvider>(context, listen: false);
-    callProvider.addCall(number, simSlot);
+    callProvider.addCall(number, simSlot,duration);
   }
 
   Widget callButton(String title, int slot) {
+    BorderRadius borderRadius;
+    if (slot == 0) {
+      borderRadius = BorderRadius.only(
+        topLeft: Radius.circular(12.r),
+        bottomLeft: Radius.circular(12.r),
+        topRight: Radius.circular(0),
+        bottomRight: Radius.circular(0),
+      );
+    } else {
+      borderRadius = BorderRadius.only(
+        topRight: Radius.circular(12.r),
+        bottomRight: Radius.circular(12.r),
+        topLeft: Radius.circular(0),
+        bottomLeft: Radius.circular(0),
+      );
+    }
+
     return ElevatedButton.icon(
       style: ElevatedButton.styleFrom(
         minimumSize: Size(100.w, 40.h),
         padding: EdgeInsets.symmetric(horizontal: 8.w, vertical: 6.h),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(5.r)),
         backgroundColor: ColorConstants.greenColor,
+        shape: RoundedRectangleBorder(borderRadius: borderRadius),
       ),
       onPressed: () {
         if (typedNumber.isNotEmpty) makeCall(typedNumber, slot);
