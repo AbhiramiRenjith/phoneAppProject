@@ -1,7 +1,7 @@
 import 'package:android_intent_plus/android_intent.dart';
 import 'package:call_log/call_log.dart';
-import 'package:device_info_plus/device_info_plus.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_slidable/flutter_slidable.dart';
 import 'package:intl/intl.dart';
@@ -36,12 +36,38 @@ class _DialScreenState extends State<DialScreen> {
   bool showDialer = true;
   bool showCheckbox = true;
    List<Map<String, String>> simList = [];
+     static const MethodChannel _channel = MethodChannel("sim_channel");
   @override
   void initState() {
     super.initState();
     loadSimInfo();
     initDialScreen();
+     _listenCallEnd();
    
+  }
+   void _listenCallEnd() {
+    _channel.setMethodCallHandler((call) async {
+      if (call.method == "callEnded") {
+        String phoneNumber = call.arguments;
+        await _addCallWithDuration(phoneNumber);
+      }
+    });
+  }
+    Future<void> _addCallWithDuration(String number) async {
+    Iterable<CallLogEntry> entries = await CallLog.query();
+    CallLogEntry? lastCall;
+
+    for (var entry in entries) {
+      if (entry.number == number) {
+        lastCall = entry;
+        break;
+      }
+    }
+
+    int duration = lastCall?.duration ?? 0;
+
+    final callProvider = Provider.of<CallProvider>(context, listen: false);
+    callProvider.addCall(number, 0, duration); // save with actual duration
   }
 
   Future<void> initDialScreen() async {
@@ -52,6 +78,8 @@ class _DialScreenState extends State<DialScreen> {
       });
     }
   }
+
+  
     String formatDuration(int seconds) {
     final hours = seconds ~/ 3600;
     final minutes = (seconds % 3600) ~/ 60;
@@ -676,7 +704,7 @@ class _DialScreenState extends State<DialScreen> {
     );
     await intent.launch();
     if (!mounted) return;
-      await Future.delayed(const Duration(seconds: 5));
+      await Future.delayed(const Duration(seconds: 3));
      
   Iterable<CallLogEntry> entries = await CallLog.query();
   CallLogEntry? lastCall;
