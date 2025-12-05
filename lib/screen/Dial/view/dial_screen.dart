@@ -10,6 +10,7 @@ import 'package:phoneapp/constants/color_constants.dart';
 import 'package:phoneapp/constants/text_constants.dart';
 import 'package:phoneapp/screen/Contacts/model/contacts_model.dart';
 import 'package:phoneapp/screen/Contacts/provider/contact_provider.dart';
+import 'package:phoneapp/screen/Dial/helper/sim_helper.dart';
 import 'package:phoneapp/screen/Dial/provider/call_provider.dart';
 import 'package:phoneapp/screen/Dial/view/keys.dart';
 import 'package:phoneapp/screen/Dial/model/call_history_model.dart';
@@ -17,8 +18,6 @@ import 'package:hive_flutter/hive_flutter.dart';
 import 'package:phoneapp/screen/callDetails/calldetails_screen.dart';
 import 'package:provider/provider.dart';
 import 'package:share_plus/share_plus.dart';
-
-
 
 class DialScreen extends StatefulWidget {
   const DialScreen({super.key});
@@ -31,25 +30,27 @@ class _DialScreenState extends State<DialScreen> {
   bool selectionMode = false;
   List<CallModel> selectedCalls = [];
   bool allSelect = false;
-  int simCount = 1;
+  int simCount = 0;
   bool showShare = false;
   CallModel? shareNumber;
   bool showDialer = true;
   bool showCheckbox = true;
+   List<Map<String, String>> simList = [];
   @override
   void initState() {
     super.initState();
+    loadSimInfo();
     initDialScreen();
+   
   }
 
   Future<void> initDialScreen() async {
-    await detectSimCount();
-
-    // if (mounted && showDialer) {
-    //   WidgetsBinding.instance.addPostFrameCallback((_) {
-    //     showDialerBottomSheet();
-    //   });
-    // }
+  
+    if (mounted && showDialer) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        showDialerBottomSheet();
+      });
+    }
   }
     String formatDuration(int seconds) {
     final hours = seconds ~/ 3600;
@@ -63,19 +64,16 @@ class _DialScreenState extends State<DialScreen> {
     return '$result s';
   }
 
-  Future<void> detectSimCount() async {
-    try {
-      final deviceInfo = DeviceInfoPlugin();
-      final androidInfo = await deviceInfo.androidInfo;
-      bool dualSim = androidInfo.supportedAbis.length > 1;
 
-      if (!mounted) return;
-      setState(() {
-        simCount = dualSim ? 2 : 1;
-      });
-    } catch (_) {}
+  Future<void> loadSimInfo() async {
+    final sims = await SimHelper.getSimInfo();
+    if (!mounted) return;
+
+    setState(() {
+      simList = sims;
+      simCount = sims.length; 
+    });
   }
-
   @override
   Widget build(BuildContext context) {
     final callhistoryProvider = Provider.of<CallProvider>(context);
@@ -382,6 +380,7 @@ class _DialScreenState extends State<DialScreen> {
   }
 
   void showDialerBottomSheet() {
+    
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -678,7 +677,7 @@ class _DialScreenState extends State<DialScreen> {
     await intent.launch();
     if (!mounted) return;
       await Future.delayed(const Duration(seconds: 5));
-      // Fetch last call log for this number after making the call
+     
   Iterable<CallLogEntry> entries = await CallLog.query();
   CallLogEntry? lastCall;
   for (var entry in entries) {
@@ -690,6 +689,9 @@ class _DialScreenState extends State<DialScreen> {
   int duration = lastCall?.duration ?? 0;
     final callProvider = Provider.of<CallProvider>(context, listen: false);
     callProvider.addCall(number, simSlot,duration);
+     setState(() {
+    typedNumber = "";
+  });
   }
 
   Widget callButton(String title, int slot) {

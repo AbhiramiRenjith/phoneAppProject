@@ -1,14 +1,12 @@
-
-
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:permission_handler/permission_handler.dart';
 import 'package:phoneapp/constants/color_constants.dart';
 import 'package:phoneapp/constants/text_constants.dart';
 import 'package:phoneapp/screen/Contacts/model/contacts_model.dart';
 import 'package:phoneapp/screen/Dial/model/call_history_model.dart';
+import 'package:phoneapp/screen/Dial/provider/call_provider.dart';
 import 'package:provider/provider.dart';
 import '../provider/contact_provider.dart';
 import 'package:flutter_contacts/flutter_contacts.dart';
@@ -16,7 +14,13 @@ import 'package:flutter_contacts/flutter_contacts.dart';
 class CreateContactScreen extends StatefulWidget {
   final bool isEditing;
   final CallModel? call;
-  const CreateContactScreen({super.key, this.isEditing = false, this.call});
+  final int? contactKey;
+  const CreateContactScreen({
+    super.key,
+    this.isEditing = false,
+    this.call,
+    this.contactKey,
+  });
 
   @override
   State<CreateContactScreen> createState() => _CreateContactScreenState();
@@ -25,6 +29,7 @@ class CreateContactScreen extends StatefulWidget {
 class _CreateContactScreenState extends State<CreateContactScreen> {
   final TextEditingController _nameController = TextEditingController();
   final TextEditingController _numberController = TextEditingController();
+  ContactModel? editingContact;
 
   File? pickedImage;
 
@@ -50,28 +55,26 @@ class _CreateContactScreenState extends State<CreateContactScreen> {
       });
     }
   }
-@override
-void initState() {
-  super.initState();
 
-  if (widget.isEditing && widget.call != null) {
-    _numberController.text = widget.call!.number;
-    final contactProvider = Provider.of<ContactProvider>(context, listen: false);
-    final contact = contactProvider.contactBox.values.firstWhere(
-      (c) => c.number == widget.call!.number,
-      orElse: () => ContactModel(name: "", number: "", profile: ""),
-    );
-    _nameController.text = contact.name;
-    if (contact.profile.isNotEmpty) {
-      pickedImage = File(contact.profile);
+  @override
+  void initState() {
+    super.initState();
+
+    final provider = Provider.of<ContactProvider>(context, listen: false);
+
+    if (widget.isEditing && widget.contactKey != null) {
+      editingContact = provider.contactBox.get(widget.contactKey);
+
+      _nameController.text = editingContact!.name;
+      _numberController.text = editingContact!.number;
+
+      if (editingContact!.profile.isNotEmpty) {
+        pickedImage = File(editingContact!.profile);
+      }
+    } else if (widget.call != null) {
+      _numberController.text = widget.call!.number;
     }
   }
-
- if (!widget.isEditing && widget.call != null) {
-  _numberController.text = widget.call!.number;
-}
-
-}
 
   @override
   Widget build(BuildContext context) {
@@ -148,7 +151,7 @@ void initState() {
                   ),
 
                   SizedBox(height: 50),
-                  
+
                   Row(
                     mainAxisAlignment: MainAxisAlignment.end,
                     children: [
@@ -195,42 +198,41 @@ void initState() {
     );
   }
 
-
-void validation() async {
-  if (_formKey.currentState!.validate()) {
-    final contactProvider = Provider.of<ContactProvider>(context, listen: false);
-
-    if (widget.isEditing && widget.call != null) {
-      final existingContact = contactProvider.contactBox.values.firstWhere(
-        (c) => c.number == widget.call!.number,
-        orElse: () => ContactModel(name: "", number: "", profile: ""),
+  void validation() async {
+    if (_formKey.currentState!.validate()) {
+      final contactProvider = Provider.of<ContactProvider>(
+        context,
+        listen: false,
       );
-      existingContact.name = _nameController.text;
-      existingContact.number = _numberController.text;
-      existingContact.profile = pickedImage?.path ?? "";
-      await existingContact.save(); 
-    } else {
-      final newContact = ContactModel(
-        name: _nameController.text,
-        number: _numberController.text,
-        profile: pickedImage?.path ?? "",
-      );
-      contactProvider.addContact(newContact);
+
+      if (widget.isEditing) {
+        contactProvider.updateContact(
+          editingContact!,
+          updatedName: _nameController.text,
+          updatedPhone: _numberController.text,
+          updatedImage: pickedImage?.path ?? editingContact!.profile,
+        );
+        final callProvider = Provider.of<CallProvider>(context, listen: false);
+        callProvider.updateCallsNumber(
+          oldNumber: editingContact!.number,
+          newNumber: _numberController.text,
+        );
+        Navigator.pop(context);
+      } else {
+        final newContact = ContactModel(
+          name: _nameController.text,
+          number: _numberController.text,
+          profile: pickedImage?.path ?? "",
+        );
+
+        contactProvider.addContact(newContact);
+      }
+
+      await saveToGoogleContact();
+
+      if (!mounted) return;
+      Navigator.pop(context);
     }
-    await saveToGoogleContact();
-
-    if (!mounted) return;
-    Navigator.pop(context);
-  }
-}
-  Future<bool> requestContactPermission() async {
-    var status = await Permission.contacts.status;
-
-    if (status.isDenied) {
-      status = await Permission.contacts.request();
-    }
-
-    return status.isGranted;
   }
 
   void showImagePickerSheet() {
@@ -280,7 +282,7 @@ void validation() async {
     );
   }
 
-   Future<void> saveToGoogleContact() async {
+  Future<void> saveToGoogleContact() async {
     if (await FlutterContacts.requestPermission()) {
       final newContact = Contact()
         ..name.first = _nameController.text
@@ -292,46 +294,6 @@ void validation() async {
       await newContact.insert();
     }
   }
-
-// Future<void> saveToGoogleContact() async {
-//   if (!await FlutterContacts.requestPermission()) return;
-
-//   final String newName = _nameController.text.trim();
-//   final String newNumber = _numberController.text.trim();
-
-//   Contact? googleContact;
-
-
-//   final contacts = await FlutterContacts.getContacts(
-//     withProperties: true,
-//     withAccounts: true,
-//     withPhoto: true,
-//   );
-//   googleContact = contacts.firstWhere(
-//     (c) => c.phones.any((p) => p.number.replaceAll(" ", "") ==
-//         newNumber.replaceAll(" ", "")),
-//     orElse: () => Contact(),
-//   );
-
-//   final bool editingExisting =
-//       googleContact.accounts.isNotEmpty;
-
-  
-//   googleContact.name.first = newName;
-
-//   googleContact.phones = [Phone(newNumber)];
-
-//   if (pickedImage != null) {
-//     googleContact.photo = pickedImage!.readAsBytesSync();
-//   }
-//   if (editingExisting) {
-//     await googleContact.update();    
-//   } else {
-//     await googleContact.insert();     
-//   }
-// }
-
-
 
   Widget customAppBar() {
     return Container(

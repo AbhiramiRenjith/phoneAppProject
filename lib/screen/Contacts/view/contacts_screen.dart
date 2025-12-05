@@ -339,7 +339,7 @@ class _ContactScreenState extends State<ContactScreen> {
                   Navigator.push(
                     context,
                     MaterialPageRoute(
-                      builder: (_) => const CreateContactScreen(isEditing: false,),
+                      builder: (_) => const CreateContactScreen(),
                     ),
                   );
                 },

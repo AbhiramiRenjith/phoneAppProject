@@ -13,5 +13,30 @@ class ContactProvider extends ChangeNotifier {
 
   void deleteContact(ContactModel contact) {
     contact.delete();
+    notifyListeners();
   }
+
+
+
+  Future<void> updateContact(ContactModel existingContact, {
+  required String updatedName,
+  required String updatedPhone,
+  String? updatedImage,
+}) async {
+
+  final key = existingContact.key;  
+
+  if (key != null) {
+    final updated = ContactModel(
+      name: updatedName,
+      number: updatedPhone,
+      profile: updatedImage ?? existingContact.profile,
+    );
+
+    await contactBox.put(key, updated);  
+  }
+  notifyListeners();
+}
+
+
 }
