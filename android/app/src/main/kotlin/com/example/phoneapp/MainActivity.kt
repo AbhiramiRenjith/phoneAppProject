@@ -1,4 +1,4 @@
-package com.example.phoneapp  // Must match your app package
+package com.example.phoneapp  
 
 import android.telephony.SubscriptionInfo
 import android.telephony.SubscriptionManager

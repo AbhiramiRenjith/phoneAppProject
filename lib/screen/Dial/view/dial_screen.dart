@@ -36,39 +36,19 @@ class _DialScreenState extends State<DialScreen> {
   bool showDialer = true;
   bool showCheckbox = true;
    List<Map<String, String>> simList = [];
-     static const MethodChannel _channel = MethodChannel("sim_channel");
+   
   @override
   void initState() {
     super.initState();
     loadSimInfo();
     initDialScreen();
-     _listenCallEnd();
+   
    
   }
-   void _listenCallEnd() {
-    _channel.setMethodCallHandler((call) async {
-      if (call.method == "callEnded") {
-        String phoneNumber = call.arguments;
-        await _addCallWithDuration(phoneNumber);
-      }
-    });
-  }
-    Future<void> _addCallWithDuration(String number) async {
-    Iterable<CallLogEntry> entries = await CallLog.query();
-    CallLogEntry? lastCall;
+ 
+ 
 
-    for (var entry in entries) {
-      if (entry.number == number) {
-        lastCall = entry;
-        break;
-      }
-    }
-
-    int duration = lastCall?.duration ?? 0;
-
-    final callProvider = Provider.of<CallProvider>(context, listen: false);
-    callProvider.addCall(number, 0, duration);
-  }
+  
 
   Future<void> initDialScreen() async {
   
@@ -80,17 +60,7 @@ class _DialScreenState extends State<DialScreen> {
   }
 
   
-    String formatDuration(int seconds) {
-    final hours = seconds ~/ 3600;
-    final minutes = (seconds % 3600) ~/ 60;
-    final secs = seconds % 60;
-
-    String result = '';
-    if (hours > 0) result += '$hours:';
-    result += '${minutes.toString().padLeft(2, '0')}:';
-    result += secs.toString().padLeft(2, '0');
-    return '$result s';
-  }
+  
 
 
   Future<void> loadSimInfo() async {
@@ -705,22 +675,40 @@ class _DialScreenState extends State<DialScreen> {
     await intent.launch();
     if (!mounted) return;
       await Future.delayed(const Duration(seconds: 3));
+      // Wait until call disconnects
+  await Future.delayed(const Duration(seconds: 4));
+
+  // Get latest call log entry
+final Iterable<CallLogEntry> entries = await CallLog.get();
+
+CallLogEntry? lastCall;
+
+try {
+  lastCall = entries.firstWhere((e) => e.number == number);
+} catch (e) {
+  lastCall = null;
+}
+
+if (lastCall != null) {
+  saveCallToHistory(lastCall, simSlot);
+}
+
+
      
-  Iterable<CallLogEntry> entries = await CallLog.query();
-  CallLogEntry? lastCall;
-  for (var entry in entries) {
-    if (entry.number == number) {
-      lastCall = entry;
-      break;
-    }
+ 
   }
-  int duration = lastCall?.duration ?? 0;
-    final callProvider = Provider.of<CallProvider>(context, listen: false);
-    callProvider.addCall(number, simSlot,duration);
-     setState(() {
-    typedNumber = "";
-  });
-  }
+ 
+ void saveCallToHistory(CallLogEntry entry, int simSlot) {
+  final callhistoryProvider =
+      Provider.of<CallProvider>(context, listen: false);
+
+  callhistoryProvider.addCall(
+    entry.number ?? "",
+    simSlot,
+    entry.duration ?? 0,   // ✔ real call duration
+  );
+}
+
 
   Widget callButton(String title, int slot) {
     BorderRadius borderRadius;
