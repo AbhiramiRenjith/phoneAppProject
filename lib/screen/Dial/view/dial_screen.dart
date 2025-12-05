@@ -67,7 +67,7 @@ class _DialScreenState extends State<DialScreen> {
     int duration = lastCall?.duration ?? 0;
 
     final callProvider = Provider.of<CallProvider>(context, listen: false);
-    callProvider.addCall(number, 0, duration); // save with actual duration
+    callProvider.addCall(number, 0, duration);
   }
 
   Future<void> initDialScreen() async {
