@@ -1,8 +1,9 @@
-package com.example.phoneapp  
+package com.example.phoneapp
 
 import android.telephony.SubscriptionInfo
 import android.telephony.SubscriptionManager
 import android.telephony.TelephonyManager
+import android.telephony.PhoneStateListener
 import androidx.annotation.NonNull
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
@@ -17,19 +18,26 @@ class MainActivity: FlutterActivity() {
 
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CHANNEL)
             .setMethodCallHandler { call, result ->
-                if (call.method == "getSimInfo") {
-                    try {
-                        val simList = getInsertedSimInfo()
-                        result.success(simList)
-                    } catch (e: Exception) {
-                        result.error("ERROR", e.message, null)
+                when (call.method) {
+                    "getSimInfo" -> {
+                        try {
+                            val simList = getInsertedSimInfo()
+                            result.success(simList)
+                        } catch (e: Exception) {
+                            result.error("ERROR", e.message, null)
+                        }
                     }
-                } else {
-                    result.notImplemented()
+                    "startCallListener" -> {
+                        val number = call.argument<String>("number") ?: ""
+                        startCallListener(number)
+                        result.success("Listening for call state")
+                    }
+                    else -> {
+                        result.notImplemented()
+                    }
                 }
             }
     }
-    
 
     private fun getInsertedSimInfo(): List<Map<String, String>> {
         val subscriptionManager = getSystemService(TELEPHONY_SUBSCRIPTION_SERVICE) as SubscriptionManager
@@ -49,5 +57,33 @@ class MainActivity: FlutterActivity() {
             simList.add(simInfo)
         }
         return simList
+    }
+
+    private fun startCallListener(number: String) {
+        val telephonyManager = getSystemService(TELEPHONY_SERVICE) as TelephonyManager
+
+        telephonyManager.listen(object : PhoneStateListener() {
+            var isCallStarted = false
+
+            override fun onCallStateChanged(state: Int, incomingNumber: String?) {
+                super.onCallStateChanged(state, incomingNumber)
+
+                when (state) {
+                    TelephonyManager.CALL_STATE_OFFHOOK -> {
+                        isCallStarted = true
+                    }
+                    TelephonyManager.CALL_STATE_IDLE -> {
+                        if (isCallStarted) {
+                            // Notify Flutter
+                            MethodChannel(
+                                this@MainActivity.flutterEngine!!.dartExecutor.binaryMessenger,
+                                CHANNEL
+                            ).invokeMethod("callEnded", number)
+                            isCallStarted = false
+                        }
+                    }
+                }
+            }
+        }, PhoneStateListener.LISTEN_CALL_STATE)
     }
 }

@@ -1,14 +1,18 @@
-import 'dart:io';
+
+import 'package:android_intent_plus/android_intent.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_phone_direct_caller/flutter_phone_direct_caller.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_slidable/flutter_slidable.dart';
 import 'package:hive_flutter/hive_flutter.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'package:phoneapp/constants/color_constants.dart';
 import 'package:phoneapp/constants/text_constants.dart';
-import 'package:phoneapp/screen/Contacts/model/contacts_model.dart';
+import 'package:phoneapp/screen/Contacts/model/contact_history_model.dart';
 import 'package:phoneapp/screen/Contacts/provider/contact_provider.dart';
 import 'package:phoneapp/screen/Contacts/view/contacts_screen.dart';
+import 'package:phoneapp/screen/Dial/helper/call_helper.dart';
+import 'package:phoneapp/screen/Dial/provider/call_provider.dart';
 import 'package:phoneapp/screen/Favourites/provider/favourite_provider.dart';
 import 'package:provider/provider.dart';
 
@@ -22,27 +26,27 @@ class FavouriteScreen extends StatefulWidget {
 class _FavouriteScreenState extends State<FavouriteScreen> {
   @override
   Widget build(BuildContext context) {
-    final provider = Provider.of<FavouriteProvider>(context, listen: false);
-    final contactProvider = Provider.of<ContactProvider>(
-      context,
-      listen: false,
-    );
+    final favouriteProvider =
+        Provider.of<FavouriteProvider>(context, listen: false);
+    final contactProvider =
+        Provider.of<ContactProvider>(context, listen: false);
 
     return Scaffold(
       backgroundColor: ColorConstants.whiteColor,
-
       body: Column(
         children: [
-          customFavouriteAppBar(),
-
+          _customFavouriteAppBar(),
           Expanded(
             child: ValueListenableBuilder(
-              valueListenable: provider.favouriteBox.listenable(),
+              valueListenable: favouriteProvider.favouriteBox.listenable(),
               builder: (context, Box<ContactModel> box, _) {
                 final favourites = box.values.toList();
                 if (favourites.isEmpty) {
-                  return  Center(
-                    child: Text(TextConstants.nofavouritecontacts,style: TextStyle(fontSize: 20.sp),),
+                  return Center(
+                    child: Text(
+                      TextConstants.nofavouritecontacts,
+                      style: TextStyle(fontSize: 20.sp),
+                    ),
                   );
                 }
 
@@ -56,18 +60,15 @@ class _FavouriteScreenState extends State<FavouriteScreen> {
                         motion: const DrawerMotion(),
                         children: [
                           SlidableAction(
-                            onPressed: (context) {
-                              makeCall(fav);
-                            },
+                            onPressed: (_) => makeCall(fav.name,0),
                             foregroundColor: ColorConstants.whiteColor,
                             backgroundColor: ColorConstants.greenColor,
                             icon: Icons.call,
                             label: TextConstants.call,
                           ),
                           SlidableAction(
-                            onPressed: (context) {
-                              provider.deleteFavourite(fav);
-
+                            onPressed: (_) {
+                              favouriteProvider.deleteFavourite(fav);
                               ScaffoldMessenger.of(context).showSnackBar(
                                 const SnackBar(
                                   content: Text(TextConstants.calldeleted),
@@ -82,7 +83,7 @@ class _FavouriteScreenState extends State<FavouriteScreen> {
                         ],
                       ),
                       child: ListTile(
-                        leading: fav.profile.isEmpty
+                        leading: (fav.profile == null || fav.profile!.isEmpty)
                             ? CircleAvatar(
                                 radius: 30.r,
                                 backgroundColor: ColorConstants.blue,
@@ -100,17 +101,22 @@ class _FavouriteScreenState extends State<FavouriteScreen> {
                                 ),
                               )
                             : CircleAvatar(
-                                backgroundImage: fav.profile.startsWith("/")
-                                    ? FileImage(File(fav.profile))
-                                    : AssetImage(fav.profile) as ImageProvider,
+                                radius: 30.r,
+                                backgroundImage: MemoryImage(fav.profile!),
                               ),
                         title: Text(
                           fav.name,
-                          style: TextStyle(fontSize: 12.sp),
+                          style: TextStyle(
+                            fontSize: 14.sp,
+                            fontWeight: FontWeight.w600,
+                          ),
                         ),
                         subtitle: Text(
                           fav.number,
-                          style: TextStyle(fontSize: 12.sp),
+                          style: TextStyle(
+                            fontSize: 12.sp,
+                            color: ColorConstants.greyColor,
+                          ),
                         ),
                       ),
                     );
@@ -121,7 +127,6 @@ class _FavouriteScreenState extends State<FavouriteScreen> {
           ),
         ],
       ),
-
       floatingActionButton: Container(
         decoration: const BoxDecoration(
           shape: BoxShape.circle,
@@ -154,7 +159,7 @@ class _FavouriteScreenState extends State<FavouriteScreen> {
     );
   }
 
-  Widget customFavouriteAppBar() {
+  Widget _customFavouriteAppBar() {
     return Container(
       padding: EdgeInsets.only(
         top: 45.h,
@@ -186,8 +191,21 @@ class _FavouriteScreenState extends State<FavouriteScreen> {
     );
   }
 
-  void makeCall(ContactModel contact) async {
-    if (contact.number.isEmpty) return;
-    await FlutterPhoneDirectCaller.callNumber(contact.number);
+  Future<void> makeCall(String number, int simSlot) async {
+    var status = await Permission.phone.status;
+    if (!status.isGranted) {
+      status = await Permission.phone.request();
+      if (!status.isGranted) return;
+    }
+    final intent = AndroidIntent(
+      action: 'android.intent.action.CALL',
+      data: 'tel:$number',
+      arguments: {"com.android.phone.extra.slot": simSlot},
+    );
+    await intent.launch();
+
+    if (!mounted) return;
+    final callProvider = Provider.of<CallProvider>(context, listen: false);
+    callProvider.addCall(number, simSlot, 0);
   }
 }

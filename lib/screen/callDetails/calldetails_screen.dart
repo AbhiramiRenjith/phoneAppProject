@@ -4,13 +4,15 @@ import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:intl/intl.dart';
+import 'package:path/path.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:phoneapp/constants/color_constants.dart';
 import 'package:phoneapp/constants/text_constants.dart';
-import 'package:phoneapp/screen/Contacts/model/contacts_model.dart';
+import 'package:phoneapp/screen/Contacts/model/contact_history_model.dart';
 import 'package:phoneapp/screen/Contacts/provider/contact_provider.dart';
 import 'package:phoneapp/screen/Contacts/view/create_contact.dart';
-import 'package:phoneapp/screen/Dial/model/call_history_model.dart';
+import 'package:phoneapp/screen/Dial/helper/call_helper.dart';
+import 'package:phoneapp/screen/Dial/model/callhistory_model.dart';
 import 'package:phoneapp/screen/Dial/provider/call_provider.dart';
 import 'package:provider/provider.dart';
 
@@ -22,8 +24,15 @@ class CallDetailsPage extends StatefulWidget {
     required this.call,
     required this.simCount,
   });
+
   @override
   State<CallDetailsPage> createState() => _CallDetailsPageState();
+}
+
+String normalizeNumber(String number) {
+  return number
+      .replaceAll(RegExp(r'[^0-9]'), '')
+      .replaceFirst(RegExp(r'^91'), '');
 }
 
 String formatDuration(int seconds) {
@@ -38,14 +47,18 @@ String formatDuration(int seconds) {
 }
 
 class _CallDetailsPageState extends State<CallDetailsPage> {
+  
+
+
   @override
   Widget build(BuildContext context) {
     final contactProvider = Provider.of<ContactProvider>(context);
     final callProvider = Provider.of<CallProvider>(context);
 
     final contact = contactProvider.contactBox.values.firstWhere(
-      (c) => c.number == widget.call.number,
-      orElse: () => ContactModel(name: "", number: "", profile: ""),
+      (c) => normalizeNumber(c.number) == normalizeNumber(widget.call.number),
+      orElse: () =>
+          ContactModel(name: "", number: "", profile: null, profilePath: null),
     );
 
     bool isSavedContact = contact.number.isNotEmpty;
@@ -72,9 +85,7 @@ class _CallDetailsPageState extends State<CallDetailsPage> {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 IconButton(
-                  onPressed: () {
-                    Navigator.pop(context);
-                  },
+                  onPressed: () => Navigator.pop(context),
                   icon: Icon(
                     Icons.arrow_back_ios,
                     color: ColorConstants.whiteColor,
@@ -96,12 +107,10 @@ class _CallDetailsPageState extends State<CallDetailsPage> {
                       Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (context) {
-                            return CreateContactScreen(
-                              isEditing: false,
-                              call: widget.call,
-                            );
-                          },
+                          builder: (_) => CreateContactScreen(
+                            isEditing: false,
+                            call: widget.call,
+                          ),
                         ),
                       );
                     },
@@ -111,19 +120,16 @@ class _CallDetailsPageState extends State<CallDetailsPage> {
                       size: 25.sp,
                     ),
                   ),
-
                 if (isSavedContact)
                   IconButton(
                     onPressed: () {
                       Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (context) {
-                            return CreateContactScreen(
-                              isEditing: true,
-                              contactKey: contact.key, 
-                            );
-                          },
+                          builder: (_) => CreateContactScreen(
+                            isEditing: true,
+                            contact: contact,
+                          ),
                         ),
                       );
                     },
@@ -136,17 +142,10 @@ class _CallDetailsPageState extends State<CallDetailsPage> {
               ],
             ),
           ),
+
           SizedBox(height: 50.h),
 
-          CircleAvatar(
-            radius: 45.r,
-            backgroundImage: contact.profile.isNotEmpty
-                ? FileImage(File(contact.profile))
-                : null,
-            child: contact.profile.isEmpty
-                ? Icon(Icons.person, size: 40.sp)
-                : null,
-          ),
+          buildContactAvatar(contact, radius: 45.r),
 
           SizedBox(height: 12.h),
 
@@ -175,25 +174,26 @@ class _CallDetailsPageState extends State<CallDetailsPage> {
                 () => _sendMessage(context, widget.call.number),
                 bgColor: Colors.blue,
               ),
-              if (widget.simCount == 1) ...[
+              if (widget.simCount == 1)
                 _actionButton(
                   Icons.call,
                   "SIM 1",
-                  () => _makeCall(context, widget.call.number, 0),
-                ),
-              ] else ...[
+                  () => makeCall(context,widget.call.number, 0),
+                )
+              else ...[
                 _actionButton(
+
+            
                   Icons.call,
                   "SIM 1",
-                  () => _makeCall(context, widget.call.number, 0),
+                  () => makeCall(context,widget.call.number, 0),
                 ),
                 _actionButton(
                   Icons.call,
                   "SIM 2",
-                  () => _makeCall(context, widget.call.number, 1),
+                  () => CallHelper.makeCall(context, widget.call.number, 1),
                 ),
               ],
-
               _actionButton(
                 Icons.videocam,
                 "Video",
@@ -203,7 +203,6 @@ class _CallDetailsPageState extends State<CallDetailsPage> {
           ),
 
           SizedBox(height: 25.h),
-          SizedBox(height: 20.h),
           Padding(
             padding: EdgeInsets.symmetric(horizontal: 15.w),
             child: Align(
@@ -214,7 +213,6 @@ class _CallDetailsPageState extends State<CallDetailsPage> {
               ),
             ),
           ),
-
           SizedBox(height: 10.h),
 
           Expanded(
@@ -223,7 +221,11 @@ class _CallDetailsPageState extends State<CallDetailsPage> {
               builder: (context, Box<CallModel> box, _) {
                 final logs =
                     box.values
-                        .where((c) => c.number == widget.call.number)
+                        .where(
+                          (c) =>
+                              normalizeNumber(c.number) ==
+                              normalizeNumber(widget.call.number),
+                        )
                         .toList()
                       ..sort((a, b) => b.time.compareTo(a.time));
 
@@ -238,7 +240,15 @@ class _CallDetailsPageState extends State<CallDetailsPage> {
                       ),
                       title: Text(DateFormat("dd MMM yyyy").format(log.time)),
                       subtitle: Text(DateFormat("hh:mm a").format(log.time)),
-                      trailing: Text(formatDuration(log.duration)),
+                      trailing: log.duration == 0
+                          ? Text(
+                              "not connect",
+                              style: TextStyle(
+                                color: ColorConstants.greyColor,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            )
+                          : Text(formatDuration(log.duration)),
                     );
                   },
                 );
@@ -249,22 +259,12 @@ class _CallDetailsPageState extends State<CallDetailsPage> {
       ),
     );
   }
-
-  void _sendMessage(BuildContext context, String number) async {
-    final intent = AndroidIntent(
-      action: 'android.intent.action.SENDTO',
-      data: 'smsto:$number',
-    );
-    await intent.launch();
-  }
-
-  void _makeCall(BuildContext context, String number, int simSlot) async {
+   Future<void> makeCall(BuildContext context,String number, int simSlot) async {
     var status = await Permission.phone.status;
     if (!status.isGranted) {
       status = await Permission.phone.request();
       if (!status.isGranted) return;
     }
-
     final intent = AndroidIntent(
       action: 'android.intent.action.CALL',
       data: 'tel:$number',
@@ -277,6 +277,14 @@ class _CallDetailsPageState extends State<CallDetailsPage> {
     callProvider.addCall(number, simSlot, 0);
   }
 
+  void _sendMessage(BuildContext context, String number) async {
+    final intent = AndroidIntent(
+      action: 'android.intent.action.SENDTO',
+      data: 'smsto:$number',
+    );
+    await intent.launch();
+  }
+
   void _videoCall(BuildContext context, String number) async {
     final intent = AndroidIntent(
       action: 'android.intent.action.CALL',
@@ -286,6 +294,7 @@ class _CallDetailsPageState extends State<CallDetailsPage> {
     await intent.launch();
   }
 }
+
 
 Widget _actionButton(
   IconData icon,
@@ -308,4 +317,28 @@ Widget _actionButton(
       Text(label),
     ],
   );
+}
+
+CircleAvatar buildContactAvatar(ContactModel contact, {double radius = 45}) {
+  if (contact.profile != null && contact.profile!.isNotEmpty) {
+    return CircleAvatar(
+      radius: radius,
+      backgroundImage: MemoryImage(contact.profile!),
+    );
+  } else if (contact.profilePath != null &&
+      File(contact.profilePath!).existsSync()) {
+    return CircleAvatar(
+      radius: radius,
+      backgroundImage: FileImage(File(contact.profilePath!)),
+    );
+  } else {
+    return CircleAvatar(
+      radius: radius,
+      backgroundColor: Colors.blue,
+      child: Text(
+        contact.name.isNotEmpty ? contact.name[0].toUpperCase() : "?",
+        style: TextStyle(color: Colors.white, fontSize: radius / 1.5),
+      ),
+    );
+  }
 }

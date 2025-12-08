@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:hive_flutter/hive_flutter.dart';
-import 'package:phoneapp/screen/Contacts/model/contacts_model.dart';
+import 'package:phoneapp/screen/Contacts/model/contact_history_model.dart';
 
 class FavouriteProvider  extends ChangeNotifier{
 

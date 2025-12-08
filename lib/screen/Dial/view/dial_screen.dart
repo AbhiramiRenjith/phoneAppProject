@@ -1,23 +1,20 @@
-import 'package:android_intent_plus/android_intent.dart';
-import 'package:call_log/call_log.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_slidable/flutter_slidable.dart';
 import 'package:intl/intl.dart';
-import 'package:permission_handler/permission_handler.dart';
 import 'package:phoneapp/constants/color_constants.dart';
 import 'package:phoneapp/constants/text_constants.dart';
-import 'package:phoneapp/screen/Contacts/model/contacts_model.dart';
+import 'package:phoneapp/screen/Contacts/model/contact_history_model.dart';
 import 'package:phoneapp/screen/Contacts/provider/contact_provider.dart';
+import 'package:phoneapp/screen/Dial/helper/call_helper.dart';
 import 'package:phoneapp/screen/Dial/helper/sim_helper.dart';
+import 'package:phoneapp/screen/Dial/model/callhistory_model.dart';
 import 'package:phoneapp/screen/Dial/provider/call_provider.dart';
-import 'package:phoneapp/screen/Dial/view/keys.dart';
-import 'package:phoneapp/screen/Dial/model/call_history_model.dart';
-import 'package:hive_flutter/hive_flutter.dart';
 import 'package:phoneapp/screen/callDetails/calldetails_screen.dart';
 import 'package:provider/provider.dart';
 import 'package:share_plus/share_plus.dart';
+import 'package:hive_flutter/hive_flutter.dart';
+import 'package:phoneapp/screen/Dial/view/keys.dart';
 
 class DialScreen extends StatefulWidget {
   const DialScreen({super.key});
@@ -35,46 +32,51 @@ class _DialScreenState extends State<DialScreen> {
   CallModel? shareNumber;
   bool showDialer = true;
   bool showCheckbox = true;
-   List<Map<String, String>> simList = [];
-   
+
   @override
   void initState() {
     super.initState();
     loadSimInfo();
-    initDialScreen();
-   
-   
-  }
- 
- 
-
-  
-
-  Future<void> initDialScreen() async {
-  
     if (mounted && showDialer) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        showDialerBottomSheet();
-      });
+      WidgetsBinding.instance.addPostFrameCallback(
+        (_) => showDialerBottomSheet(),
+      );
     }
   }
 
-  
-  
-
+  String normalizeNumber(String number) {
+    number = number.replaceAll(RegExp(r'[^0-9]'), '');
+    if (number.startsWith("91") && number.length == 12) {
+      number = number.substring(2);
+    }
+    if (number.startsWith("0") && number.length == 11) {
+      number = number.substring(1);
+    }
+    return number;
+  }
 
   Future<void> loadSimInfo() async {
     final sims = await SimHelper.getSimInfo();
     if (!mounted) return;
-
     setState(() {
-      simList = sims;
-      simCount = sims.length; 
+      simCount = sims.length;
     });
   }
+
+  String formatDuration(int seconds) {
+    final hours = seconds ~/ 3600;
+    final minutes = (seconds % 3600) ~/ 60;
+    final secs = seconds % 60;
+    String result = '';
+    if (hours > 0) result += '$hours:';
+    result += '${minutes.toString().padLeft(2, '0')}:';
+    result += secs.toString().padLeft(2, '0');
+    return '$result s';
+  }
+
   @override
   Widget build(BuildContext context) {
-    final callhistoryProvider = Provider.of<CallProvider>(context);
+    final callProvider = Provider.of<CallProvider>(context);
     return Scaffold(
       backgroundColor: ColorConstants.whiteColor,
       body: Column(
@@ -83,7 +85,7 @@ class _DialScreenState extends State<DialScreen> {
           Row(
             mainAxisAlignment: MainAxisAlignment.end,
             children: [
-              if (callhistoryProvider.box.values.isNotEmpty && showCheckbox)
+              if (callProvider.box.values.isNotEmpty && showCheckbox)
                 IconButton(
                   onPressed: () {
                     setState(() {
@@ -91,13 +93,13 @@ class _DialScreenState extends State<DialScreen> {
                       selectedCalls.clear();
                     });
                   },
-                  icon: Icon(Icons.check_box_outlined),
+                  icon: const Icon(Icons.check_box_outlined),
                 ),
             ],
           ),
           Expanded(
             child: ValueListenableBuilder(
-              valueListenable: callhistoryProvider.box.listenable(),
+              valueListenable: callProvider.box.listenable(),
               builder: (context, Box<CallModel> box, _) {
                 final calls = box.values.toList().reversed.toList();
 
@@ -121,8 +123,8 @@ class _DialScreenState extends State<DialScreen> {
                               motion: const DrawerMotion(),
                               children: [
                                 SlidableAction(
-                                  onPressed: (context) {
-                                    callhistoryProvider.deleteCall(call);
+                                  onPressed: (_) {
+                                    callProvider.deleteCall(call);
                                     ScaffoldMessenger.of(context).showSnackBar(
                                       SnackBar(
                                         content: Text(
@@ -159,7 +161,6 @@ class _DialScreenState extends State<DialScreen> {
                                 }
                               });
                             },
-
                             leading: selectionMode
                                 ? Checkbox(
                                     value: selectedCalls.contains(call),
@@ -178,7 +179,6 @@ class _DialScreenState extends State<DialScreen> {
                                     Icons.phone,
                                     color: ColorConstants.greenColor,
                                   ),
-
                             title: Consumer<ContactProvider>(
                               builder: (context, contactProvider, child) {
                                 final matchedContact = contactProvider
@@ -186,11 +186,12 @@ class _DialScreenState extends State<DialScreen> {
                                     .values
                                     .firstWhere(
                                       (element) =>
-                                          element.number == call.number,
+                                          normalizeNumber(element.number) ==
+                                          normalizeNumber(call.number),
                                       orElse: () => ContactModel(
                                         name: "",
                                         number: "",
-                                        profile: "",
+                                        profile: null,
                                       ),
                                     );
 
@@ -212,27 +213,25 @@ class _DialScreenState extends State<DialScreen> {
                                     .values
                                     .firstWhere(
                                       (element) =>
-                                          element.number == call.number,
+                                          normalizeNumber(element.number) ==
+                                          normalizeNumber(call.number),
                                       orElse: () => ContactModel(
                                         name: "",
                                         number: "",
-                                        profile: "",
+                                        profile: null,
                                       ),
                                     );
+
                                 return Row(
                                   children: [
-                                    call.simSlot == 0
-                                        ? Icon(
-                                            Icons.looks_one_rounded,
-                                            color: ColorConstants.greyColor,
-                                            size: 18.sp,
-                                          )
-                                        : Icon(
-                                            Icons.looks_two,
-                                            color: ColorConstants.greyColor,
-                                            size: 18.sp,
-                                          ),
-
+                                    Icon(
+                                      call.simSlot == 0
+                                          ? Icons.looks_one_rounded
+                                          : Icons.looks_two,
+                                      color: ColorConstants.greyColor,
+                                      size: 18.sp,
+                                    ),
+                                    SizedBox(width: 5.w),
                                     matchedContact.name.isNotEmpty
                                         ? Text(
                                             call.number,
@@ -244,8 +243,8 @@ class _DialScreenState extends State<DialScreen> {
                                         : Text(
                                             TextConstants.unknownlocation,
                                             style: TextStyle(
-                                              color: ColorConstants.greyColor,
                                               fontSize: 13.sp,
+                                              color: ColorConstants.greyColor,
                                             ),
                                           ),
                                   ],
@@ -255,7 +254,6 @@ class _DialScreenState extends State<DialScreen> {
                             trailing: Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                
                                 Text(
                                   DateFormat('hh.mm a').format(call.time),
                                   style: TextStyle(
@@ -264,14 +262,15 @@ class _DialScreenState extends State<DialScreen> {
                                     color: ColorConstants.greyColor,
                                   ),
                                 ),
-
                                 IconButton(
                                   onPressed: () {
                                     Navigator.push(
                                       context,
                                       MaterialPageRoute(
-                                        builder: (_) =>
-                                            CallDetailsPage(call: call,simCount:simCount),
+                                        builder: (_) => CallDetailsPage(
+                                          call: call,
+                                          simCount: simCount,
+                                        ),
                                       ),
                                     );
                                   },
@@ -282,13 +281,12 @@ class _DialScreenState extends State<DialScreen> {
                                 ),
                               ],
                             ),
-
                             onTap: (!selectionMode && !showShare)
-                                ? () {
-                                    setState(() {
-                                      makeCall(call.number, 0);
-                                    });
-                                  }
+                                ? () => CallHelper.makeCall(
+                                    context,
+                                    call.number,
+                                    0,
+                                  )
                                 : null,
                           ),
                         ),
@@ -304,15 +302,14 @@ class _DialScreenState extends State<DialScreen> {
       floatingActionButtonLocation: selectionMode
           ? FloatingActionButtonLocation.centerFloat
           : FloatingActionButtonLocation.endFloat,
-
-      floatingActionButton: (selectionMode && selectedCalls.isNotEmpty)
+      floatingActionButton: selectionMode && selectedCalls.isNotEmpty
           ? FloatingActionButton(
               shape: const CircleBorder(),
               onPressed: deleteSelected,
               backgroundColor: ColorConstants.lightred,
               child: const Icon(Icons.delete, color: ColorConstants.whiteColor),
             )
-          : (!selectionMode)
+          : !selectionMode
           ? FloatingActionButton(
               shape: const CircleBorder(),
               backgroundColor: ColorConstants.greenColor,
@@ -333,24 +330,11 @@ class _DialScreenState extends State<DialScreen> {
     );
   }
 
-
-
-
-
-
   void selectAllItems() {
-    final callhistoryProvider = Provider.of<CallProvider>(
-      context,
-      listen: false,
-    );
-
+    final callProvider = Provider.of<CallProvider>(context, listen: false);
     setState(() {
       allSelect = !allSelect;
-      if (allSelect == true) {
-        selectedCalls = callhistoryProvider.box.values.toList();
-      } else {
-        selectedCalls.clear();
-      }
+      selectedCalls = allSelect ? callProvider.box.values.toList() : [];
     });
   }
 
@@ -362,177 +346,15 @@ class _DialScreenState extends State<DialScreen> {
   }
 
   void deleteSelected() {
-    final callhistoryProvider = Provider.of<CallProvider>(
-      context,
-      listen: false,
-    );
+    final callProvider = Provider.of<CallProvider>(context, listen: false);
     for (CallModel call in selectedCalls) {
-      callhistoryProvider.deleteCall(call);
+      callProvider.deleteCall(call);
     }
-
     setState(() {
       selectionMode = false;
       selectedCalls.clear();
       allSelect = false;
     });
-  }
-
-  void showDialerBottomSheet() {
-    
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: ColorConstants.whiteColor,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (_) {
-        return StatefulBuilder(
-          builder: (context, setBottomState) {
-            return SafeArea(
-              child: Padding(
-                padding: EdgeInsets.only(
-                  bottom: MediaQuery.of(context).viewInsets.bottom,
-                ),
-                child: Container(
-                  constraints: BoxConstraints(
-                    maxHeight: MediaQuery.of(context).size.height * 0.90,
-                  ),
-                  child: SingleChildScrollView(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 16),
-                          child: TextField(
-                            controller: TextEditingController(text: typedNumber)
-                              ..selection = TextSelection.fromPosition(
-                                TextPosition(offset: typedNumber.length),
-                              ),
-                            readOnly: true,
-                            showCursor: true,
-                            enableInteractiveSelection: true,
-                            onTap: () {
-                              final controller = TextEditingController(
-                                text: typedNumber,
-                              );
-                              controller.selection = TextSelection.fromPosition(
-                                TextPosition(offset: typedNumber.length),
-                              );
-                            },
-                            style: TextStyle(
-                              fontSize: 34.sp,
-                              fontWeight: FontWeight.bold,
-                              color: ColorConstants.blaclColor,
-                            ),
-                            decoration: const InputDecoration(
-                              border: InputBorder.none,
-                            ),
-                            textAlign: TextAlign.center,
-                            cursorColor: ColorConstants.greenColor,
-                          ),
-                        ),
-                        GridView.count(
-                          padding: EdgeInsets.symmetric(horizontal: 16.w),
-                          shrinkWrap: true,
-                          physics: const NeverScrollableScrollPhysics(),
-                          crossAxisCount: 3,
-                          childAspectRatio: 1.2,
-                          children: keys.map((key) {
-                            return Container(
-                              margin: const EdgeInsets.all(6),
-                              decoration: BoxDecoration(
-                                color: ColorConstants.lightBlue,
-                                borderRadius: BorderRadius.circular(18),
-                              ),
-                              child: TextButton(
-                                onPressed: () {
-                                  typedNumber += key[TextConstants.digit]!;
-                                  setBottomState(() {});
-                                },
-                                onLongPress: () {
-                                  if (key[TextConstants.digit] == '0') {
-                                    typedNumber += '+';
-                                    setBottomState(() {});
-                                  }
-                                },
-                                child: Column(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: [
-                                    Text(
-                                      key[TextConstants.digit]!,
-                                      style: TextStyle(
-                                        fontSize: 28,
-                                        fontWeight: FontWeight.bold,
-                                        color: ColorConstants.blaclColor,
-                                      ),
-                                    ),
-                                    SizedBox(height: 4),
-                                    Text(
-                                      key[TextConstants.letters]!,
-                                      style: TextStyle(
-                                        fontSize: 12,
-                                        color: ColorConstants.greyColor,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            );
-                          }).toList(),
-                        ),
-
-                        SizedBox(height: 10.h),
-
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            SizedBox(width: 20.sp),
-
-                            SizedBox(width: 20.sp),
-
-                            if (simCount == 1) ...[
-                              Expanded(
-                                child: callButton(TextConstants.sim1, 0),
-                              ),
-                            ] else ...[
-                              Expanded(
-                                child: callButton(TextConstants.sim1, 0),
-                              ),
-                              SizedBox(width: 5.w),
-                              Expanded(
-                                child: callButton(TextConstants.sim2, 1),
-                              ),
-                            ],
-                            SizedBox(width: 10.w),
-
-                            IconButton(
-                              onPressed: () {
-                                if (typedNumber.isNotEmpty) {
-                                  typedNumber = typedNumber.substring(
-                                    0,
-                                    typedNumber.length - 1,
-                                  );
-                                  setBottomState(() {});
-                                }
-                              },
-                              icon: Icon(Icons.backspace_outlined, size: 28.sp),
-                            ),
-                            SizedBox(width: 20.sp),
-                          ],
-                        ),
-
-                        const SizedBox(height: 20),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-            );
-          },
-        );
-      },
-    );
   }
 
   Widget customAppBar() {
@@ -553,11 +375,11 @@ class _DialScreenState extends State<DialScreen> {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          if (showShare)
+          if (showShare || selectionMode)
             IconButton(
               onPressed: () {
                 setState(() {
-                  showShare = false;
+                  showShare ? showShare = false : unselectAll();
                   shareNumber = null;
                   showCheckbox = !showCheckbox;
                 });
@@ -568,22 +390,8 @@ class _DialScreenState extends State<DialScreen> {
                 size: 28.sp,
               ),
             )
-          else if (selectionMode)
-            IconButton(
-              onPressed: () {
-                setState(() {
-                  unselectAll();
-                });
-              },
-              icon: Icon(
-                Icons.close,
-                color: ColorConstants.whiteColor,
-                size: 26.sp,
-              ),
-            )
           else
             const SizedBox(width: 30),
-
           Expanded(
             child: Text(
               showShare
@@ -591,9 +399,7 @@ class _DialScreenState extends State<DialScreen> {
                   : selectionMode
                   ? TextConstants.selectCall
                   : "",
-
               textAlign: TextAlign.center,
-              overflow: TextOverflow.ellipsis,
               style: TextStyle(
                 fontSize: 26.sp,
                 color: ColorConstants.whiteColor,
@@ -601,132 +407,194 @@ class _DialScreenState extends State<DialScreen> {
               ),
             ),
           ),
-
-          Row(
-            children: [
-              if (showShare)
-                IconButton(
-                  onPressed: () {
-                    if (shareNumber != null) {
-                      final contactProvider = Provider.of<ContactProvider>(
-                        context,
-                        listen: false,
+          if (showShare)
+            IconButton(
+              onPressed: () {
+                if (shareNumber != null) {
+                  final contactProvider = Provider.of<ContactProvider>(
+                    context,
+                    listen: false,
+                  );
+                  final matchedContact = contactProvider.contactBox.values
+                      .firstWhere(
+                        (e) => e.number == shareNumber!.number,
+                        orElse: () =>
+                            ContactModel(name: "", number: "", profile: null),
                       );
-
-                      final matchedContact = contactProvider.contactBox.values
-                          .firstWhere(
-                            (e) => e.number == shareNumber!.number,
-                            orElse: () =>
-                                ContactModel(name: "", number: "", profile: ""),
-                          );
-
-                      String textToShare = matchedContact.name.isNotEmpty
-                          ? "Name: ${matchedContact.name}\nPhone: ${shareNumber!.number}"
-                          : "Phone: ${shareNumber!.number}";
-                      Share.share(textToShare);
-                    }
-                  },
-                  icon: Icon(
-                    Icons.share,
-                    color: ColorConstants.whiteColor,
-                    size: 28.sp,
-                  ),
-                )
-              else if (selectionMode)
-                TextButton(
-                  onPressed: () {
-                    setState(() {
-                      selectAllItems();
-                    });
-                  },
-                  child: Text(
-                    TextConstants.all,
-                    style: TextStyle(
-                      color: ColorConstants.whiteColor,
-                      fontSize: 20.sp,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                )
-              else
-                const SizedBox(width: 30),
-            ],
-          ),
+                  String textToShare = matchedContact.name.isNotEmpty
+                      ? "Name: ${matchedContact.name}\nPhone: ${shareNumber!.number}"
+                      : "Phone Number: ${shareNumber!.number}";
+                
+                  Share.share(textToShare);
+                }
+              },
+              icon: Icon(
+                Icons.share,
+                color: ColorConstants.whiteColor,
+                size: 28.sp,
+              ),
+            )
+          else if (selectionMode)
+            TextButton(
+              onPressed: selectAllItems,
+              child: Text(
+                TextConstants.all,
+                style: TextStyle(
+                  color: ColorConstants.whiteColor,
+                  fontSize: 20.sp,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            )
+          else
+            const SizedBox(width: 30),
         ],
       ),
     );
   }
 
-  Future<void> makeCall(String number, int simSlot) async {
-    var status = await Permission.phone.status;
-    if (!status.isGranted) {
-      status = await Permission.phone.request();
-      if (!status.isGranted) {
-        return;
-      }
-    }
+  void showDialerBottomSheet() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: ColorConstants.whiteColor,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (_) => StatefulBuilder(
+        builder: (context, setBottomState) => SafeArea(
+          child: Padding(
+            padding: EdgeInsets.only(
+              bottom: MediaQuery.of(context).viewInsets.bottom,
+            ),
+            child: Container(
+              constraints: BoxConstraints(
+                maxHeight: MediaQuery.of(context).size.height * 0.9,
+              ),
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      child: TextField(
+                        controller: TextEditingController(text: typedNumber)
+                          ..selection = TextSelection.fromPosition(
+                            TextPosition(offset: typedNumber.length),
+                          ),
+                        readOnly: true,
+                        showCursor: true,
+                        style: TextStyle(
+                          fontSize: 34.sp,
+                          fontWeight: FontWeight.bold,
+                          color: ColorConstants.blaclColor,
+                        ),
+                        textAlign: TextAlign.center,
+                        decoration: const InputDecoration(
+                          border: InputBorder.none,
+                        ),
+                        cursorColor: ColorConstants.greenColor,
+                      ),
+                    ),
+                    GridView.count(
+                      padding: EdgeInsets.symmetric(horizontal: 16.w),
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      crossAxisCount: 3,
+                      childAspectRatio: 1.2,
+                      children: keys.map((key) {
+                        return Container(
+                          margin: const EdgeInsets.all(6),
+                          decoration: BoxDecoration(
+                            color: ColorConstants.lightBlue,
+                            borderRadius: BorderRadius.circular(18),
+                          ),
+                          child: TextButton(
+                            onPressed: () {
+                              typedNumber += key[TextConstants.digit]!;
+                              setBottomState(() {});
+                            },
+                            onLongPress: () {
+                              if (key[TextConstants.digit] == '0') {
+                                typedNumber += '+';
+                                setBottomState(() {});
+                              }
+                            },
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Text(
+                                  key[TextConstants.digit]!,
+                                  style: TextStyle(
+                                    fontSize: 28,
+                                    fontWeight: FontWeight.bold,
+                                    color: ColorConstants.blaclColor,
+                                  ),
+                                ),
+                                SizedBox(height: 4),
+                                Text(
+                                  key[TextConstants.letters]!,
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: ColorConstants.greyColor,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        );
+                      }).toList(),
+                    ),
+                    SizedBox(height: 10.h),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        SizedBox(width: 25.sp),
 
-    final intent = AndroidIntent(
-      action: 'android.intent.action.CALL',
-      data: 'tel:$number',
-
-      arguments: {"com.android.phone.extra.slot": simSlot},
+                        if (simCount == 1) ...[
+                          Expanded(child: callButton(TextConstants.sim1, 0)),
+                        ] else ...[
+                          Expanded(child: callButton(TextConstants.sim1, 0)),
+                          SizedBox(width: 5.w),
+                          Expanded(child: callButton(TextConstants.sim2, 1)),
+                        ],
+                        SizedBox(width: 10.w),
+                        IconButton(
+                          onPressed: () {
+                            if (typedNumber.isNotEmpty) {
+                              typedNumber = typedNumber.substring(
+                                0,
+                                typedNumber.length - 1,
+                              );
+                              setBottomState(() {});
+                            }
+                          },
+                          icon: Icon(Icons.backspace_outlined, size: 28.sp),
+                        ),
+                        SizedBox(width: 20.sp),
+                      ],
+                    ),
+                    const SizedBox(height: 20),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
     );
-    await intent.launch();
-    if (!mounted) return;
-      await Future.delayed(const Duration(seconds: 3));
-      // Wait until call disconnects
-  await Future.delayed(const Duration(seconds: 4));
-
-  // Get latest call log entry
-final Iterable<CallLogEntry> entries = await CallLog.get();
-
-CallLogEntry? lastCall;
-
-try {
-  lastCall = entries.firstWhere((e) => e.number == number);
-} catch (e) {
-  lastCall = null;
-}
-
-if (lastCall != null) {
-  saveCallToHistory(lastCall, simSlot);
-}
-
-
-     
- 
   }
- 
- void saveCallToHistory(CallLogEntry entry, int simSlot) {
-  final callhistoryProvider =
-      Provider.of<CallProvider>(context, listen: false);
-
-  callhistoryProvider.addCall(
-    entry.number ?? "",
-    simSlot,
-    entry.duration ?? 0,   // ✔ real call duration
-  );
-}
-
 
   Widget callButton(String title, int slot) {
-    BorderRadius borderRadius;
-    if (slot == 0) {
-      borderRadius = BorderRadius.only(
-        topLeft: Radius.circular(12.r),
-        bottomLeft: Radius.circular(12.r),
-        topRight: Radius.circular(0),
-        bottomRight: Radius.circular(0),
-      );
-    } else {
-      borderRadius = BorderRadius.only(
-        topRight: Radius.circular(12.r),
-        bottomRight: Radius.circular(12.r),
-        topLeft: Radius.circular(0),
-        bottomLeft: Radius.circular(0),
-      );
-    }
+    BorderRadius borderRadius = slot == 0
+        ? BorderRadius.only(
+            topLeft: Radius.circular(12.r),
+            bottomLeft: Radius.circular(12.r),
+          )
+        : BorderRadius.only(
+            topRight: Radius.circular(12.r),
+            bottomRight: Radius.circular(12.r),
+          );
 
     return ElevatedButton.icon(
       style: ElevatedButton.styleFrom(
@@ -736,7 +604,9 @@ if (lastCall != null) {
         shape: RoundedRectangleBorder(borderRadius: borderRadius),
       ),
       onPressed: () {
-        if (typedNumber.isNotEmpty) makeCall(typedNumber, slot);
+        if (typedNumber.isNotEmpty) {
+          CallHelper.makeCall(context, typedNumber, slot);
+        }
       },
       icon: Icon(Icons.call, color: ColorConstants.whiteColor, size: 18.sp),
       label: Text(

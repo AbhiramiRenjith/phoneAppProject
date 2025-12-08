@@ -1,6 +1,6 @@
 // GENERATED CODE - DO NOT MODIFY BY HAND
 
-part of 'call_history_model.dart';
+part of 'callhistory_model.dart';
 
 // **************************************************************************
 // TypeAdapterGenerator

@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:hive_flutter/hive_flutter.dart';
-import 'package:phoneapp/screen/Dial/model/call_history_model.dart';
-import 'package:phoneapp/screen/Contacts/model/contacts_model.dart';
+import 'package:phoneapp/screen/Contacts/model/contact_history_model.dart';
 import 'package:phoneapp/screen/Contacts/provider/contact_provider.dart';
+import 'package:phoneapp/screen/Dial/model/callhistory_model.dart';
 import 'package:phoneapp/screen/Dial/provider/call_provider.dart';
 import 'package:phoneapp/screen/Favourites/provider/favourite_provider.dart';
 import 'package:phoneapp/screen/bottomnavigation.dart';
@@ -22,8 +22,10 @@ void main() async {
     MultiProvider(
       providers: [
         ChangeNotifierProvider(create: (_) => CallProvider()),
-        ChangeNotifierProvider(create: (_) => ContactProvider()),
+        ChangeNotifierProvider(create: (_) => ContactProvider()..loadDeviceContacts()),
          ChangeNotifierProvider(create: (_) => FavouriteProvider()),
+
+         
       ],
       child: const MyApp(),
     ),

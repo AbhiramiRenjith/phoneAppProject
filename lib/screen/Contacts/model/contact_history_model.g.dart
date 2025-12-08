@@ -1,6 +1,6 @@
 // GENERATED CODE - DO NOT MODIFY BY HAND
 
-part of 'contacts_model.dart';
+part of 'contact_history_model.dart';
 
 // **************************************************************************
 // TypeAdapterGenerator
@@ -19,20 +19,26 @@ class ContactModelAdapter extends TypeAdapter<ContactModel> {
     return ContactModel(
       name: fields[0] as String,
       number: fields[1] as String,
-      profile: fields[2] as String,
+      profile: fields[2] as Uint8List?,
+      profilePath: fields[3] as String?,
+      deviceId: fields[4] as String?,
     );
   }
 
   @override
   void write(BinaryWriter writer, ContactModel obj) {
     writer
-      ..writeByte(3)
+      ..writeByte(5)
       ..writeByte(0)
       ..write(obj.name)
       ..writeByte(1)
       ..write(obj.number)
       ..writeByte(2)
-      ..write(obj.profile);
+      ..write(obj.profile)
+      ..writeByte(3)
+      ..write(obj.profilePath)
+      ..writeByte(4)
+      ..write(obj.deviceId);
   }
 
   @override

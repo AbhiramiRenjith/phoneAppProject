@@ -1,19 +1,19 @@
-
-
 import 'dart:io';
+import 'dart:typed_data';
 import 'package:android_intent_plus/android_intent.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_slidable/flutter_slidable.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:phoneapp/screen/Contacts/provider/contact_provider.dart';
+import 'package:provider/provider.dart';
 import 'package:phoneapp/constants/color_constants.dart';
 import 'package:phoneapp/constants/text_constants.dart';
-import 'package:phoneapp/screen/Contacts/model/contacts_model.dart';
+import 'package:phoneapp/screen/Contacts/model/contact_history_model.dart';
 import 'package:phoneapp/screen/Contacts/view/create_contact.dart';
 import 'package:phoneapp/screen/Dial/provider/call_provider.dart';
 import 'package:phoneapp/screen/Favourites/provider/favourite_provider.dart';
-import 'package:provider/provider.dart';
 
 class ContactScreen extends StatefulWidget {
   final bool showCheckbox;
@@ -28,55 +28,15 @@ class _ContactScreenState extends State<ContactScreen> {
   List<ContactModel> favContacts = [];
   final TextEditingController _searchController = TextEditingController();
 
+  @override
+  void initState() {
+    super.initState();
+    Provider.of<ContactProvider>(context, listen: false).loadDeviceContacts();
+  }
+
   bool isFavourite(ContactModel contact) {
     final favBox = Hive.box<ContactModel>('favourites');
     return favBox.values.any((e) => e.number == contact.number);
-  }
-
-  void selectAllItems(List<ContactModel> displayedContacts) {
-    setState(() {
-      allSelect = !allSelect;
-      favContacts = allSelect ? List.from(displayedContacts) : [];
-    });
-  }
-
-  Map<String, List<ContactModel>> groupContacts(List<ContactModel> contacts) {
-    final Map<String, List<ContactModel>> grouped = {};
-    contacts.sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
-
-    for (var contact in contacts) {
-      String firstLetter;
-      if (contact.name.isNotEmpty) {
-        final runes = contact.name.runes.toList();
-        firstLetter = String.fromCharCode(runes[0]).toUpperCase();
-      } else {
-        firstLetter = "?";
-      }
-
-      grouped.putIfAbsent(firstLetter, () => []);
-      grouped[firstLetter]!.add(contact);
-    }
-
-    return grouped;
-  }
-
-  Future<void> makeCall(String number, int simSlot) async {
-    var status = await Permission.phone.status;
-    if (!status.isGranted) {
-      status = await Permission.phone.request();
-      if (!status.isGranted) return;
-    }
-
-    final intent = AndroidIntent(
-      action: 'android.intent.action.CALL',
-      data: 'tel:$number',
-      arguments: {"com.android.phone.extra.slot": simSlot},
-    );
-    await intent.launch();
-
-    if (!mounted) return;
-    final callProvider = Provider.of<CallProvider>(context, listen: false);
-    callProvider.addCall(number, simSlot,0);
   }
 
   Future<void> sendMessage(String number) async {
@@ -101,14 +61,21 @@ class _ContactScreenState extends State<ContactScreen> {
           TextButton(
             onPressed: () {
               Navigator.pop(context);
-              final box = Hive.box<ContactModel>('contacts');
-              box.delete(contact.key);
+              final contactProvider = Provider.of<ContactProvider>(
+                context,
+                listen: false,
+              );
+              contactProvider.deleteContactFromDevice(contact);
 
               final favBox = Hive.box<ContactModel>('favourites');
               final favKey = favBox.values
                   .firstWhere(
                     (e) => e.number == contact.number,
-                    orElse: () => ContactModel(name: '', number: '', profile: ''),
+                    orElse: () => ContactModel(
+                      name: '',
+                      number: '',
+                      profile: Uint8List(0),
+                    ),
                   )
                   .key;
               if (favKey != null) favBox.delete(favKey);
@@ -127,9 +94,69 @@ class _ContactScreenState extends State<ContactScreen> {
     );
   }
 
+  Widget buildAvatar(ContactModel contact) {
+    if (contact.profile != null && contact.profile!.isNotEmpty) {
+      return ClipOval(
+        child: Image.memory(
+          contact.profile!,
+          width: 60.r,
+          height: 60.r,
+          fit: BoxFit.cover,
+        ),
+      );
+    } else if (contact.profilePath != null &&
+        File(contact.profilePath!).existsSync()) {
+      return ClipOval(
+        child: Image.file(
+          File(contact.profilePath!),
+          width: 60.r,
+          height: 60.r,
+          fit: BoxFit.cover,
+        ),
+      );
+    } else {
+      return CircleAvatar(
+        radius: 30.r,
+        backgroundColor: ColorConstants.blue,
+        child: Text(
+          contact.name.isNotEmpty ? contact.name[0].toUpperCase() : "?",
+          style: TextStyle(
+            color: Colors.white,
+            fontSize: 22.sp,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+      );
+    }
+  }
+
+  CircleAvatar buildContactAvatar(ContactModel contact, {double radius = 45}) {
+    if (contact.profile != null && contact.profile!.isNotEmpty) {
+      return CircleAvatar(
+        radius: radius,
+        backgroundImage: MemoryImage(contact.profile!),
+      );
+    } else if (contact.profilePath != null &&
+        File(contact.profilePath!).existsSync()) {
+      return CircleAvatar(
+        radius: radius,
+        backgroundImage: FileImage(File(contact.profilePath!)),
+      );
+    } else {
+      return CircleAvatar(
+        radius: radius,
+        backgroundColor: Colors.blue,
+        child: Text(
+          contact.name.isNotEmpty ? contact.name[0].toUpperCase() : "?",
+          style: TextStyle(color: Colors.white, fontSize: radius / 1.5),
+        ),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    final contactBox = Hive.box<ContactModel>('contacts');
+    final contactProvider = Provider.of<ContactProvider>(context);
 
     return Scaffold(
       backgroundColor: ColorConstants.whiteColor,
@@ -138,7 +165,7 @@ class _ContactScreenState extends State<ContactScreen> {
           customContactAppBar(),
           Expanded(
             child: ValueListenableBuilder(
-              valueListenable: contactBox.listenable(),
+              valueListenable: contactProvider.contactBox.listenable(),
               builder: (context, Box<ContactModel> box, _) {
                 List<ContactModel> contacts = box.values.toList();
 
@@ -183,7 +210,7 @@ class _ContactScreenState extends State<ContactScreen> {
                         ),
                         ...groupContacts.map((contact) {
                           return Slidable(
-                            key: ValueKey(contact.number),
+                            key: ValueKey("${contact.number}_${contact.name}"),
                             startActionPane: ActionPane(
                               motion: const StretchMotion(),
                               children: [
@@ -215,46 +242,7 @@ class _ContactScreenState extends State<ContactScreen> {
                                         });
                                       },
                                     )
-                                  : CircleAvatar(
-                                      radius: 30.r,
-                                      backgroundColor: ColorConstants.blue,
-                                      child: contact.profile.isEmpty
-                                          ? Text(
-                                              String.fromCharCodes(
-                                                  contact.name.runes.take(1)),
-                                              style: TextStyle(
-                                                color: Colors.white,
-                                                fontSize: 22.sp,
-                                                fontWeight: FontWeight.bold,
-                                              ),
-                                            )
-                                          : contact.profile.startsWith("/")
-                                              ? ClipOval(
-                                                  child: Image.file(
-                                                    File(contact.profile),
-                                                    width: 60.r,
-                                                    height: 60.r,
-                                                    fit: BoxFit.cover,
-                                                  ),
-                                                )
-                                              : RegExp(
-                                                      r'^[\u{1F300}-\u{1FAFF}]',
-                                                      unicode: true)
-                                                  .hasMatch(contact.profile)
-                                                  ? Text(
-                                                      contact.profile,
-                                                      style:
-                                                          TextStyle(fontSize: 26.sp),
-                                                    )
-                                                  : ClipOval(
-                                                      child: Image.asset(
-                                                        contact.profile,
-                                                        width: 60.r,
-                                                        height: 60.r,
-                                                        fit: BoxFit.cover,
-                                                      ),
-                                                    ),
-                                    ),
+                                  : buildAvatar(contact),
                               title: Text(
                                 contact.name,
                                 style: TextStyle(fontSize: 12.sp),
@@ -292,9 +280,9 @@ class _ContactScreenState extends State<ContactScreen> {
                                           onPressed: () {
                                             final favouriteProvider =
                                                 Provider.of<FavouriteProvider>(
-                                              context,
-                                              listen: false,
-                                            );
+                                                  context,
+                                                  listen: false,
+                                                );
                                             setState(() {
                                               if (isFavourite(contact)) {
                                                 favouriteProvider
@@ -310,7 +298,7 @@ class _ContactScreenState extends State<ContactScreen> {
                                     ),
                             ),
                           );
-                        })
+                        }).toList(),
                       ],
                     );
                   }).toList(),
@@ -348,21 +336,55 @@ class _ContactScreenState extends State<ContactScreen> {
               ),
             )
           : (favContacts.isNotEmpty)
-              ? FloatingActionButton(
-                  shape: const CircleBorder(),
-                  backgroundColor: ColorConstants.lightred,
-                  onPressed: () {
-                    final favouriteProvider = Provider.of<FavouriteProvider>(
-                      context,
-                      listen: false,
-                    );
-                    favouriteProvider.addToFavourite(favContacts);
-                    Navigator.pop(context);
-                  },
-                  child: Icon(Icons.favorite, color: ColorConstants.whiteColor),
-                )
-              : null,
+          ? FloatingActionButton(
+              shape: const CircleBorder(),
+              backgroundColor: ColorConstants.lightred,
+              onPressed: () {
+                final favouriteProvider = Provider.of<FavouriteProvider>(
+                  context,
+                  listen: false,
+                );
+                favouriteProvider.addToFavourite(favContacts);
+                Navigator.pop(context);
+              },
+              child: Icon(Icons.favorite, color: ColorConstants.whiteColor),
+            )
+          : null,
     );
+  }
+
+  Map<String, List<ContactModel>> groupContacts(List<ContactModel> contacts) {
+    final Map<String, List<ContactModel>> grouped = {};
+    contacts.sort(
+      (a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()),
+    );
+
+    for (var contact in contacts) {
+      String firstLetter = contact.name.isNotEmpty
+          ? contact.name[0].toUpperCase()
+          : "?";
+      grouped.putIfAbsent(firstLetter, () => []);
+      grouped[firstLetter]!.add(contact);
+    }
+    return grouped;
+  }
+
+  Future<void> makeCall(String number, int simSlot) async {
+    var status = await Permission.phone.status;
+    if (!status.isGranted) {
+      status = await Permission.phone.request();
+      if (!status.isGranted) return;
+    }
+    final intent = AndroidIntent(
+      action: 'android.intent.action.CALL',
+      data: 'tel:$number',
+      arguments: {"com.android.phone.extra.slot": simSlot},
+    );
+    await intent.launch();
+
+    if (!mounted) return;
+    final callProvider = Provider.of<CallProvider>(context, listen: false);
+    callProvider.addCall(number, simSlot, 0);
   }
 
   Widget customContactAppBar() {
@@ -389,57 +411,27 @@ class _ContactScreenState extends State<ContactScreen> {
               if (Navigator.canPop(context))
                 IconButton(
                   onPressed: () => Navigator.pop(context),
-                  icon: Icon(
+                  icon: const Icon(
                     Icons.arrow_back_ios_new,
-                    color: ColorConstants.whiteColor,
-                    size: 22.sp,
+                    color: Colors.white,
                   ),
                 ),
-              if (widget.showCheckbox) ...[
-                Text(
-                  TextConstants.addtofavourite,
-                  style: TextStyle(
-                    color: ColorConstants.whiteColor,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 20.sp,
-                  ),
-                ),
-                IconButton(
-                  onPressed: () {
-                    selectAllItems(
-                      Hive.box<ContactModel>('contacts').values.toList(),
-                    );
-                  },
-                  icon: Icon(
-                    allSelect ? Icons.favorite : Icons.favorite_border,
-                    color: ColorConstants.whiteColor,
-                    size: 26.sp,
-                  ),
-                ),
-              ],
             ],
           ),
           SizedBox(height: 12.h),
           Container(
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(10.r),
-              border: Border.all(color: ColorConstants.whiteColor),
+              border: Border.all(color: Colors.white),
             ),
             child: TextField(
               controller: _searchController,
-              style: TextStyle(color: ColorConstants.whiteColor),
+              style: const TextStyle(color: Colors.white),
               onChanged: (_) => setState(() {}),
               decoration: InputDecoration(
                 hintText: TextConstants.searchContacts,
-                hintStyle: TextStyle(
-                  color: ColorConstants.whiteColor,
-                  fontSize: 17.sp,
-                ),
-                prefixIcon: Icon(
-                  Icons.search,
-                  color: ColorConstants.whiteColor,
-                  size: 20.sp,
-                ),
+                hintStyle: const TextStyle(color: Colors.white),
+                prefixIcon: const Icon(Icons.search, color: Colors.white),
                 border: InputBorder.none,
                 contentPadding: EdgeInsets.symmetric(vertical: 12.h),
               ),

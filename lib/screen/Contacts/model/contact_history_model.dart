@@ -1,6 +1,8 @@
+import 'dart:typed_data';
+
 import 'package:hive_flutter/hive_flutter.dart';
 
-part 'contacts_model.g.dart';
+   part 'contact_history_model.g.dart';
 
 @HiveType(typeId: 1)
 class ContactModel extends HiveObject {
@@ -11,11 +13,18 @@ class ContactModel extends HiveObject {
   String number;
 
   @HiveField(2)
-  String profile; 
+  Uint8List? profile; 
+
+  @HiveField(3)
+  String? profilePath;
+  @HiveField(4)
+  String? deviceId; 
 
   ContactModel({
     required this.name,
     required this.number,
-    required this.profile,
+    this.profile,
+    this.profilePath,
+     this.deviceId,
   });
 }
