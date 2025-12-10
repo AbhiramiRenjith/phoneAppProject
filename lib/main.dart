@@ -1,9 +1,10 @@
+
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:phoneapp/screen/Contacts/model/contact_history_model.dart';
 import 'package:phoneapp/screen/Contacts/provider/contact_provider.dart';
-import 'package:phoneapp/screen/Dial/model/callhistory_model.dart';
+import 'package:phoneapp/screen/Dial/model/call_log_history_model.dart';
 import 'package:phoneapp/screen/Dial/provider/call_provider.dart';
 import 'package:phoneapp/screen/Favourites/provider/favourite_provider.dart';
 import 'package:phoneapp/screen/bottomnavigation.dart';
@@ -18,6 +19,7 @@ void main() async {
    Hive.registerAdapter(ContactModelAdapter()); 
   await Hive.openBox<ContactModel>('contacts'); 
   await Hive.openBox<ContactModel>('favourites'); 
+   
    runApp(
     MultiProvider(
       providers: [

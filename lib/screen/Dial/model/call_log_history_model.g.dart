@@ -1,6 +1,6 @@
 // GENERATED CODE - DO NOT MODIFY BY HAND
 
-part of 'callhistory_model.dart';
+part of 'call_log_history_model.dart';
 
 // **************************************************************************
 // TypeAdapterGenerator
@@ -21,13 +21,14 @@ class CallModelAdapter extends TypeAdapter<CallModel> {
       time: fields[1] as DateTime,
       simSlot: fields[2] as int,
       duration: fields[3] as int,
+      incoming: fields[4] as bool?,
     );
   }
 
   @override
   void write(BinaryWriter writer, CallModel obj) {
     writer
-      ..writeByte(4)
+      ..writeByte(5)
       ..writeByte(0)
       ..write(obj.number)
       ..writeByte(1)
@@ -35,7 +36,9 @@ class CallModelAdapter extends TypeAdapter<CallModel> {
       ..writeByte(2)
       ..write(obj.simSlot)
       ..writeByte(3)
-      ..write(obj.duration);
+      ..write(obj.duration)
+      ..writeByte(4)
+      ..write(obj.incoming);
   }
 
   @override

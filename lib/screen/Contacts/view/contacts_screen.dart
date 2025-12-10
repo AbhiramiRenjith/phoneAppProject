@@ -384,7 +384,7 @@ class _ContactScreenState extends State<ContactScreen> {
 
     if (!mounted) return;
     final callProvider = Provider.of<CallProvider>(context, listen: false);
-    callProvider.addCall(number, simSlot, 0);
+    callProvider.addCall(number, simSlot, 0,false);
   }
 
   Widget customContactAppBar() {

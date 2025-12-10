@@ -1,7 +1,6 @@
 
 import 'package:android_intent_plus/android_intent.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_phone_direct_caller/flutter_phone_direct_caller.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_slidable/flutter_slidable.dart';
 import 'package:hive_flutter/hive_flutter.dart';
@@ -11,7 +10,6 @@ import 'package:phoneapp/constants/text_constants.dart';
 import 'package:phoneapp/screen/Contacts/model/contact_history_model.dart';
 import 'package:phoneapp/screen/Contacts/provider/contact_provider.dart';
 import 'package:phoneapp/screen/Contacts/view/contacts_screen.dart';
-import 'package:phoneapp/screen/Dial/helper/call_helper.dart';
 import 'package:phoneapp/screen/Dial/provider/call_provider.dart';
 import 'package:phoneapp/screen/Favourites/provider/favourite_provider.dart';
 import 'package:provider/provider.dart';
@@ -206,6 +204,6 @@ class _FavouriteScreenState extends State<FavouriteScreen> {
 
     if (!mounted) return;
     final callProvider = Provider.of<CallProvider>(context, listen: false);
-    callProvider.addCall(number, simSlot, 0);
+    callProvider.addCall(number, simSlot, 0,false);
   }
 }

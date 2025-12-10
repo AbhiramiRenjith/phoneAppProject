@@ -8,7 +8,7 @@ import 'package:phoneapp/screen/Contacts/model/contact_history_model.dart';
 import 'package:phoneapp/screen/Contacts/provider/contact_provider.dart';
 import 'package:phoneapp/screen/Dial/helper/call_helper.dart';
 import 'package:phoneapp/screen/Dial/helper/sim_helper.dart';
-import 'package:phoneapp/screen/Dial/model/callhistory_model.dart';
+import 'package:phoneapp/screen/Dial/model/call_log_history_model.dart';
 import 'package:phoneapp/screen/Dial/provider/call_provider.dart';
 import 'package:phoneapp/screen/callDetails/calldetails_screen.dart';
 import 'package:provider/provider.dart';
@@ -33,16 +33,34 @@ class _DialScreenState extends State<DialScreen> {
   bool showDialer = true;
   bool showCheckbox = true;
 
+  // @override
+  // void initState() {
+  //   super.initState();
+
+
+  //   loadSimInfo();
+  //   if (mounted && showDialer) {
+  //     WidgetsBinding.instance.addPostFrameCallback(
+  //       (_) => showDialerBottomSheet(),
+  //     );
+  //   }
+  // }
+
+
   @override
-  void initState() {
-    super.initState();
-    loadSimInfo();
+void initState() {
+  super.initState();
+
+  WidgetsBinding.instance.addPostFrameCallback((_) async {
+    final callProvider = Provider.of<CallProvider>(context, listen: false);
+    await callProvider.fetchDeviceCalls(); // fetch all calls
+    loadSimInfo(); // your existing SIM info method
     if (mounted && showDialer) {
-      WidgetsBinding.instance.addPostFrameCallback(
-        (_) => showDialerBottomSheet(),
-      );
+      showDialerBottomSheet();
     }
-  }
+  });
+}
+
 
   String normalizeNumber(String number) {
     number = number.replaceAll(RegExp(r'[^0-9]'), '');
@@ -175,10 +193,16 @@ class _DialScreenState extends State<DialScreen> {
                                       });
                                     },
                                   )
-                                : const Icon(
-                                    Icons.phone,
-                                    color: ColorConstants.greenColor,
-                                  ),
+                                  : Icon(
+        call.incoming == true
+            ? Icons.call_received // incoming
+            : Icons.call_made,    // outgoing
+        color: call.incoming == true ? Colors.green : Colors.blue,
+      ),
+                                // : const Icon(
+                                //     Icons.phone,
+                                //     color: ColorConstants.greenColor,
+                                //   ),
                             title: Consumer<ContactProvider>(
                               builder: (context, contactProvider, child) {
                                 final matchedContact = contactProvider

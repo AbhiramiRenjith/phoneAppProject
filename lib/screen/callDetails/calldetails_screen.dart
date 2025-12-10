@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:intl/intl.dart';
-import 'package:path/path.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:phoneapp/constants/color_constants.dart';
 import 'package:phoneapp/constants/text_constants.dart';
@@ -12,9 +11,10 @@ import 'package:phoneapp/screen/Contacts/model/contact_history_model.dart';
 import 'package:phoneapp/screen/Contacts/provider/contact_provider.dart';
 import 'package:phoneapp/screen/Contacts/view/create_contact.dart';
 import 'package:phoneapp/screen/Dial/helper/call_helper.dart';
-import 'package:phoneapp/screen/Dial/model/callhistory_model.dart';
+import 'package:phoneapp/screen/Dial/model/call_log_history_model.dart';
 import 'package:phoneapp/screen/Dial/provider/call_provider.dart';
 import 'package:provider/provider.dart';
+
 
 class CallDetailsPage extends StatefulWidget {
   final CallModel call;
@@ -46,10 +46,8 @@ String formatDuration(int seconds) {
   return '$result s';
 }
 
+
 class _CallDetailsPageState extends State<CallDetailsPage> {
-  
-
-
   @override
   Widget build(BuildContext context) {
     final contactProvider = Provider.of<ContactProvider>(context);
@@ -271,10 +269,9 @@ class _CallDetailsPageState extends State<CallDetailsPage> {
       arguments: {"com.android.phone.extra.slot": simSlot},
     );
     await intent.launch();
-
     if (!mounted) return;
     final callProvider = Provider.of<CallProvider>(context, listen: false);
-    callProvider.addCall(number, simSlot, 0);
+    callProvider.addCall(number, simSlot, 0,false);
   }
 
   void _sendMessage(BuildContext context, String number) async {

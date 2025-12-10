@@ -52,9 +52,12 @@ class CallHelper {
             const SnackBar(content: Text("Call not connected")),
           );
         }
-       final callProvider = Provider.of<CallProvider>(context, listen: false);
-        callProvider.addCall(number, simSlot, duration);
+
         
+       final callProvider = Provider.of<CallProvider>(context, listen: false);
+        callProvider.addCall(number, simSlot, duration,false);
+        
+
       }
     });
   }
