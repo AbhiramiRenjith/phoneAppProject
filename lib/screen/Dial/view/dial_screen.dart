@@ -8,13 +8,13 @@ import 'package:phoneapp/screen/Contacts/model/contact_history_model.dart';
 import 'package:phoneapp/screen/Contacts/provider/contact_provider.dart';
 import 'package:phoneapp/screen/Dial/helper/call_helper.dart';
 import 'package:phoneapp/screen/Dial/helper/sim_helper.dart';
-import 'package:phoneapp/screen/Dial/model/call_log_history_model.dart';
+import 'package:phoneapp/screen/Dial/model/call_log_model.dart';
 import 'package:phoneapp/screen/Dial/provider/call_provider.dart';
 import 'package:phoneapp/screen/callDetails/calldetails_screen.dart';
+import 'package:phoneapp/screen/Dial/view/keys.dart';
 import 'package:provider/provider.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:hive_flutter/hive_flutter.dart';
-import 'package:phoneapp/screen/Dial/view/keys.dart';
 
 class DialScreen extends StatefulWidget {
   const DialScreen({super.key});
@@ -22,7 +22,8 @@ class DialScreen extends StatefulWidget {
   State<DialScreen> createState() => _DialScreenState();
 }
 
-class _DialScreenState extends State<DialScreen> {
+class _DialScreenState extends State<DialScreen>
+    with SingleTickerProviderStateMixin,WidgetsBindingObserver {
   String typedNumber = "";
   bool selectionMode = false;
   List<CallModel> selectedCalls = [];
@@ -33,34 +34,48 @@ class _DialScreenState extends State<DialScreen> {
   bool showDialer = true;
   bool showCheckbox = true;
 
-  // @override
-  // void initState() {
-  //   super.initState();
-
-
-  //   loadSimInfo();
-  //   if (mounted && showDialer) {
-  //     WidgetsBinding.instance.addPostFrameCallback(
-  //       (_) => showDialerBottomSheet(),
-  //     );
-  //   }
-  // }
-
+  late TabController _tabController;
 
   @override
-void initState() {
-  super.initState();
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
 
-  WidgetsBinding.instance.addPostFrameCallback((_) async {
-    final callProvider = Provider.of<CallProvider>(context, listen: false);
-    await callProvider.fetchDeviceCalls(); // fetch all calls
-    loadSimInfo(); // your existing SIM info method
-    if (mounted && showDialer) {
-      showDialerBottomSheet();
+    _tabController = TabController(length: 2, vsync: this);
+    loadSimInfo(); 
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && showDialer) showDialerBottomSheet();
+       final callProvider = Provider.of<CallProvider>(context, listen: false);
+    callProvider.fetchDeviceCalls();
+    });
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _tabController.dispose();
+    super.dispose();
+  }
+
+ 
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      final callProvider = Provider.of<CallProvider>(context, listen: false);
+      callProvider.fetchDeviceCalls();
     }
-  });
-}
+  }
 
+
+
+
+  Future<void> loadSimInfo() async {
+    final sims = await SimHelper.getSimInfo();
+    if (!mounted) return;
+    setState(() {
+      simCount = sims.length;
+    });
+  }
 
   String normalizeNumber(String number) {
     number = number.replaceAll(RegExp(r'[^0-9]'), '');
@@ -71,14 +86,6 @@ void initState() {
       number = number.substring(1);
     }
     return number;
-  }
-
-  Future<void> loadSimInfo() async {
-    final sims = await SimHelper.getSimInfo();
-    if (!mounted) return;
-    setState(() {
-      simCount = sims.length;
-    });
   }
 
   String formatDuration(int seconds) {
@@ -95,234 +102,59 @@ void initState() {
   @override
   Widget build(BuildContext context) {
     final callProvider = Provider.of<CallProvider>(context);
+
+    callProvider.fetchDeviceCalls();
+
     return Scaffold(
       backgroundColor: ColorConstants.whiteColor,
       body: Column(
         children: [
           customAppBar(),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.end,
-            children: [
-              if (callProvider.box.values.isNotEmpty && showCheckbox)
-                IconButton(
-                  onPressed: () {
-                    setState(() {
-                      selectionMode = true;
-                      selectedCalls.clear();
-                    });
-                  },
-                  icon: const Icon(Icons.check_box_outlined),
-                ),
+          TabBar(
+            controller: _tabController,
+            indicatorColor: ColorConstants.blue,
+            labelColor: ColorConstants.blue,
+            unselectedLabelColor: Colors.grey,
+            tabs: const [
+              Tab(text: "All Calls",),
+              Tab(text: "Missed Calls"),
             ],
+            labelStyle: TextStyle(fontWeight: FontWeight.bold,fontSize: 15.sp),
           ),
-          Expanded(
-            child: ValueListenableBuilder(
-              valueListenable: callProvider.box.listenable(),
-              builder: (context, Box<CallModel> box, _) {
-                final calls = box.values.toList().reversed.toList();
 
-                if (calls.isEmpty) {
-                  return Center(
-                    child: Text(
-                      TextConstants.nocallsyet,
-                      style: TextStyle(fontSize: 20.sp),
+         
+          Consumer<CallProvider>(
+            builder: (context, callProvider, _) {
+              return Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  if (callProvider.box.values.isNotEmpty && showCheckbox)
+                    IconButton(
+                      onPressed: () {
+                        setState(() {
+                          selectionMode = true;
+                          selectedCalls.clear();
+                        });
+                      },
+                      icon: const Icon(Icons.check_box_outlined),
                     ),
-                  );
-                }
+                ],
+              );
+            },
+          ),
 
-                return ListView.builder(
-                  itemCount: calls.length,
-                  itemBuilder: (context, index) {
-                    final call = calls[index];
-                    return Slidable(
-                      key: Key(call.key.toString()),
-                      endActionPane: (!selectionMode && !showShare)
-                          ? ActionPane(
-                              motion: const DrawerMotion(),
-                              children: [
-                                SlidableAction(
-                                  onPressed: (_) {
-                                    callProvider.deleteCall(call);
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      SnackBar(
-                                        content: Text(
-                                          TextConstants.calldeleted,
-                                          style: TextStyle(fontSize: 12.sp),
-                                        ),
-                                      ),
-                                    );
-                                  },
-                                  backgroundColor: ColorConstants.lightred,
-                                  foregroundColor: ColorConstants.whiteColor,
-                                  icon: Icons.delete,
-                                  label: TextConstants.delete,
-                                ),
-                              ],
-                            )
-                          : null,
-                      child: Padding(
-                        padding: EdgeInsets.symmetric(horizontal: 10.w),
-                        child: Card(
-                          color: shareNumber == call
-                              ? ColorConstants.lightGrey
-                              : ColorConstants.whiteColor,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(2.r),
-                          ),
-                          child: ListTile(
-                            onLongPress: () {
-                              setState(() {
-                                if (!selectionMode) {
-                                  showShare = true;
-                                  shareNumber = call;
-                                  showCheckbox = !showCheckbox;
-                                }
-                              });
-                            },
-                            leading: selectionMode
-                                ? Checkbox(
-                                    value: selectedCalls.contains(call),
-                                    activeColor: ColorConstants.blue,
-                                    onChanged: (value) {
-                                      setState(() {
-                                        if (value == true) {
-                                          selectedCalls.add(call);
-                                        } else {
-                                          selectedCalls.remove(call);
-                                        }
-                                      });
-                                    },
-                                  )
-                                  : Icon(
-        call.incoming == true
-            ? Icons.call_received // incoming
-            : Icons.call_made,    // outgoing
-        color: call.incoming == true ? Colors.green : Colors.blue,
-      ),
-                                // : const Icon(
-                                //     Icons.phone,
-                                //     color: ColorConstants.greenColor,
-                                //   ),
-                            title: Consumer<ContactProvider>(
-                              builder: (context, contactProvider, child) {
-                                final matchedContact = contactProvider
-                                    .contactBox
-                                    .values
-                                    .firstWhere(
-                                      (element) =>
-                                          normalizeNumber(element.number) ==
-                                          normalizeNumber(call.number),
-                                      orElse: () => ContactModel(
-                                        name: "",
-                                        number: "",
-                                        profile: null,
-                                      ),
-                                    );
-
-                                return Text(
-                                  matchedContact.name.isNotEmpty
-                                      ? matchedContact.name
-                                      : call.number,
-                                  style: TextStyle(
-                                    fontSize: 18.sp,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                );
-                              },
-                            ),
-                            subtitle: Consumer<ContactProvider>(
-                              builder: (context, contactProvider, child) {
-                                final matchedContact = contactProvider
-                                    .contactBox
-                                    .values
-                                    .firstWhere(
-                                      (element) =>
-                                          normalizeNumber(element.number) ==
-                                          normalizeNumber(call.number),
-                                      orElse: () => ContactModel(
-                                        name: "",
-                                        number: "",
-                                        profile: null,
-                                      ),
-                                    );
-
-                                return Row(
-                                  children: [
-                                    Icon(
-                                      call.simSlot == 0
-                                          ? Icons.looks_one_rounded
-                                          : Icons.looks_two,
-                                      color: ColorConstants.greyColor,
-                                      size: 18.sp,
-                                    ),
-                                    SizedBox(width: 5.w),
-                                    matchedContact.name.isNotEmpty
-                                        ? Text(
-                                            call.number,
-                                            style: TextStyle(
-                                              fontSize: 13.sp,
-                                              color: ColorConstants.greyColor,
-                                            ),
-                                          )
-                                        : Text(
-                                            TextConstants.unknownlocation,
-                                            style: TextStyle(
-                                              fontSize: 13.sp,
-                                              color: ColorConstants.greyColor,
-                                            ),
-                                          ),
-                                  ],
-                                );
-                              },
-                            ),
-                            trailing: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Text(
-                                  DateFormat('hh.mm a').format(call.time),
-                                  style: TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 14.sp,
-                                    color: ColorConstants.greyColor,
-                                  ),
-                                ),
-                                IconButton(
-                                  onPressed: () {
-                                    Navigator.push(
-                                      context,
-                                      MaterialPageRoute(
-                                        builder: (_) => CallDetailsPage(
-                                          call: call,
-                                          simCount: simCount,
-                                        ),
-                                      ),
-                                    );
-                                  },
-                                  icon: Icon(
-                                    Icons.details,
-                                    color: ColorConstants.greyColor,
-                                  ),
-                                ),
-                              ],
-                            ),
-                            onTap: (!selectionMode && !showShare)
-                                ? () => CallHelper.makeCall(
-                                    context,
-                                    call.number,
-                                    0,
-                                  )
-                                : null,
-                          ),
-                        ),
-                      ),
-                    );
-                  },
-                );
-              },
+          Expanded(
+            child: TabBarView(
+              controller: _tabController,
+              children: [
+                buildCallList(callProvider, showMissedOnly: false),
+                buildCallList(callProvider, showMissedOnly: true),
+              ],
             ),
           ),
         ],
       ),
+
       floatingActionButtonLocation: selectionMode
           ? FloatingActionButtonLocation.centerFloat
           : FloatingActionButtonLocation.endFloat,
@@ -352,6 +184,200 @@ void initState() {
             )
           : null,
     );
+  }
+
+  Widget buildCallList(
+    CallProvider callProvider, {
+    required bool showMissedOnly,
+  }) {
+    return ValueListenableBuilder(
+      valueListenable: callProvider.box.listenable(),
+      builder: (context, Box<CallModel> box, _) {
+        List<CallModel> calls = box.values.toList().reversed.toList();
+        calls.sort((a, b) => b.time.compareTo(a.time));
+
+        if (showMissedOnly) {
+          calls = calls.where((c) => c.callType == "missed").toList();
+        }
+
+        if (calls.isEmpty) {
+          return Center(
+            child: Text(
+              TextConstants.nocallsyet,
+              style: TextStyle(fontSize: 20.sp),
+            ),
+          );
+        }
+
+        return ListView.builder(
+          itemCount: calls.length,
+          itemBuilder: (context, index) {
+            final call = calls[index];
+            return Slidable(
+              key: Key(call.key.toString()),
+              endActionPane: (!selectionMode && !showShare)
+                  ? ActionPane(
+                      motion: const DrawerMotion(),
+                      children: [
+                        SlidableAction(
+                          onPressed: (_) {
+                            callProvider.deleteCall(call);
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(
+                                  TextConstants.calldeleted,
+                                  style: TextStyle(fontSize: 12.sp),
+                                ),
+                              ),
+                            );
+                          },
+                          backgroundColor: ColorConstants.lightred,
+                          foregroundColor: ColorConstants.whiteColor,
+                          icon: Icons.delete,
+                          label: TextConstants.delete,
+                        ),
+                      ],
+                    )
+                  : null,
+              child: Padding(
+                padding: EdgeInsets.symmetric(horizontal: 10.w, vertical: 4.h),
+                child: Card(
+                  color: shareNumber == call
+                      ? ColorConstants.lightGrey
+                      : ColorConstants.whiteColor,
+                  child: ListTile(
+                    
+                    onLongPress: () {
+                      setState(() {
+                        if (!selectionMode) {
+                          showShare = true;
+                          shareNumber = call;
+                          showCheckbox = !showCheckbox;
+                        }
+                        
+                      }
+                      
+                      );
+                      
+                    },
+                     onTap: (!selectionMode && !showShare)
+                        ? () => CallHelper.makeCall(context, call.number, 0)
+                        : null,
+                    leading: selectionMode
+                        ? Checkbox(
+                            value: selectedCalls.contains(call),
+                            activeColor: ColorConstants.blue,
+                            onChanged: (value) {
+                              setState(() {
+                                if (value == true) {
+                                  selectedCalls.add(call);
+                                } else {
+                                  selectedCalls.remove(call);
+                                }
+                              });
+                            },
+                          )
+                        : _buildCallIcon(call),
+                    title: Consumer<ContactProvider>(
+                      builder: (context, contactProvider, child) {
+                        final matchedContact = contactProvider.contactBox.values
+                            .firstWhere(
+                              (element) =>
+                                  normalizeNumber(element.number) ==
+                                  normalizeNumber(call.number),
+                              orElse: () => ContactModel(
+                                name: "",
+                                number: "",
+                                profile: null,
+                              ),
+                            );
+                        return Text(
+                          matchedContact.name.isNotEmpty
+                              ? matchedContact.name
+                              : call.number,
+                          style: TextStyle(
+                            fontSize: 18.sp,
+                            fontWeight: FontWeight.w600,
+                            color: call.callType == TextConstants.missed
+                                ? Colors.red
+                                : Colors.black,
+                          ),
+                        );
+                      },
+                    ),
+                    subtitle: Row(
+                      children: [
+                        Icon(
+                          call.simSlot == 0
+                              ? Icons.looks_one_rounded
+                              : Icons.looks_two,
+                          color: ColorConstants.greyColor,
+                          size: 18.sp,
+                        ),
+                        SizedBox(width: 5.w),
+                        Text(
+                          call.number,
+                          style: TextStyle(
+                            fontSize: 13.sp,
+                            color: call.callType == "missed"
+                                ? Colors.red
+                                : Colors.grey,
+                          ),
+                        ),
+                      ],
+                    ),
+                    trailing: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          DateFormat('hh.mm a').format(call.time),
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 14.sp,
+                            color: ColorConstants.greyColor,
+                          ),
+                        ),
+                        IconButton(
+                          onPressed: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => CallDetailsPage(
+                                  call: call,
+                                  simCount: simCount,
+                                ),
+                              ),
+                            );
+                          },
+                          icon: Icon(
+                            Icons.details,
+                            color: ColorConstants.greyColor,
+                          ),
+                        ),
+                      ],
+                    ),
+                   
+                  ),
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildCallIcon(CallModel call) {
+    switch (call.callType) {
+      case "outgoing":
+        return Icon(Icons.call_made, color: Colors.green);
+      case "incoming":
+        return Icon(Icons.call_received, color: Colors.blue);
+      case "missed":
+        return Icon(Icons.call_missed, color: Colors.red);
+      default:
+        return const SizedBox();
+    }
   }
 
   void selectAllItems() {
@@ -448,7 +474,6 @@ void initState() {
                   String textToShare = matchedContact.name.isNotEmpty
                       ? "Name: ${matchedContact.name}\nPhone: ${shareNumber!.number}"
                       : "Phone Number: ${shareNumber!.number}";
-                
                   Share.share(textToShare);
                 }
               },
@@ -573,8 +598,6 @@ void initState() {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        SizedBox(width: 25.sp),
-
                         if (simCount == 1) ...[
                           Expanded(child: callButton(TextConstants.sim1, 0)),
                         ] else ...[

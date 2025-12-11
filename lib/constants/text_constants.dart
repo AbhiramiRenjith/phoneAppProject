@@ -33,6 +33,7 @@ class TextConstants {
   static const details = 'Details';
   static const editContact = 'Edit Contact';
   static const sms = 'SMS';
+  static const missed = 'missed';
  
   
  

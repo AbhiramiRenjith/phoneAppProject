@@ -6,7 +6,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:phoneapp/constants/color_constants.dart';
 import 'package:phoneapp/constants/text_constants.dart';
 import 'package:phoneapp/screen/Contacts/model/contact_history_model.dart';
-import 'package:phoneapp/screen/Dial/model/call_log_history_model.dart';
+import 'package:phoneapp/screen/Dial/model/call_log_model.dart';
 import 'package:provider/provider.dart';
 import '../provider/contact_provider.dart';
 

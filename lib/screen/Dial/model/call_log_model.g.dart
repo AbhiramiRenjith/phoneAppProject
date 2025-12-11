@@ -1,6 +1,6 @@
 // GENERATED CODE - DO NOT MODIFY BY HAND
 
-part of 'call_log_history_model.dart';
+part of 'call_log_model.dart';
 
 // **************************************************************************
 // TypeAdapterGenerator
@@ -21,7 +21,7 @@ class CallModelAdapter extends TypeAdapter<CallModel> {
       time: fields[1] as DateTime,
       simSlot: fields[2] as int,
       duration: fields[3] as int,
-      incoming: fields[4] as bool?,
+      callType: fields[4] as String,
     );
   }
 
@@ -38,7 +38,7 @@ class CallModelAdapter extends TypeAdapter<CallModel> {
       ..writeByte(3)
       ..write(obj.duration)
       ..writeByte(4)
-      ..write(obj.incoming);
+      ..write(obj.callType);
   }
 
   @override

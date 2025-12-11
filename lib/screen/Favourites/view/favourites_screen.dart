@@ -204,6 +204,6 @@ class _FavouriteScreenState extends State<FavouriteScreen> {
 
     if (!mounted) return;
     final callProvider = Provider.of<CallProvider>(context, listen: false);
-    callProvider.addCall(number, simSlot, 0,false);
+    callProvider.addCall(number, simSlot, 0,"outgoing");
   }
 }

@@ -4,6 +4,7 @@ import android.telephony.SubscriptionInfo
 import android.telephony.SubscriptionManager
 import android.telephony.TelephonyManager
 import android.telephony.PhoneStateListener
+import android.provider.CallLog
 import androidx.annotation.NonNull
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
@@ -11,12 +12,14 @@ import io.flutter.plugin.common.MethodChannel
 
 class MainActivity: FlutterActivity() {
 
-    private val CHANNEL = "sim_channel"
+    private val SIM_CHANNEL = "sim_channel"
+    private val CALL_LOG_CHANNEL = "call_helper"
 
     override fun configureFlutterEngine(@NonNull flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
 
-        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CHANNEL)
+        // SIM Info & Call Listener
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, SIM_CHANNEL)
             .setMethodCallHandler { call, result ->
                 when (call.method) {
                     "getSimInfo" -> {
@@ -32,9 +35,34 @@ class MainActivity: FlutterActivity() {
                         startCallListener(number)
                         result.success("Listening for call state")
                     }
-                    else -> {
-                        result.notImplemented()
+                    else -> result.notImplemented()
+                }
+            }
+
+        // Call Log Deletion
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CALL_LOG_CHANNEL)
+            .setMethodCallHandler { call, result ->
+                if (call.method == "deleteCall") {
+                    val number = call.argument<String>("number")
+                    val timestamp = call.argument<Long>("timestamp") ?: 0L
+
+                    if (number == null) {
+                        result.error("INVALID_ARGUMENT", "Number is null", null)
+                        return@setMethodCallHandler
                     }
+
+                    try {
+                        val cr = contentResolver
+                        val selection = "${CallLog.Calls.NUMBER} = ? AND ${CallLog.Calls.DATE} = ?"
+                        val selectionArgs = arrayOf(number, timestamp.toString())
+
+                        val rowsDeleted = cr.delete(CallLog.Calls.CONTENT_URI, selection, selectionArgs)
+                        result.success(rowsDeleted)
+                    } catch (e: SecurityException) {
+                        result.error("PERMISSION_DENIED", e.message, null)
+                    }
+                } else {
+                    result.notImplemented()
                 }
             }
     }
@@ -69,15 +97,13 @@ class MainActivity: FlutterActivity() {
                 super.onCallStateChanged(state, incomingNumber)
 
                 when (state) {
-                    TelephonyManager.CALL_STATE_OFFHOOK -> {
-                        isCallStarted = true
-                    }
+                    TelephonyManager.CALL_STATE_OFFHOOK -> isCallStarted = true
                     TelephonyManager.CALL_STATE_IDLE -> {
                         if (isCallStarted) {
                             // Notify Flutter
                             MethodChannel(
                                 this@MainActivity.flutterEngine!!.dartExecutor.binaryMessenger,
-                                CHANNEL
+                                SIM_CHANNEL
                             ).invokeMethod("callEnded", number)
                             isCallStarted = false
                         }

@@ -5,14 +5,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_slidable/flutter_slidable.dart';
 import 'package:hive_flutter/hive_flutter.dart';
-import 'package:permission_handler/permission_handler.dart';
 import 'package:phoneapp/screen/Contacts/provider/contact_provider.dart';
+import 'package:phoneapp/screen/Dial/helper/call_helper.dart';
 import 'package:provider/provider.dart';
 import 'package:phoneapp/constants/color_constants.dart';
 import 'package:phoneapp/constants/text_constants.dart';
 import 'package:phoneapp/screen/Contacts/model/contact_history_model.dart';
 import 'package:phoneapp/screen/Contacts/view/create_contact.dart';
-import 'package:phoneapp/screen/Dial/provider/call_provider.dart';
 import 'package:phoneapp/screen/Favourites/provider/favourite_provider.dart';
 
 class ContactScreen extends StatefulWidget {
@@ -215,7 +214,7 @@ class _ContactScreenState extends State<ContactScreen> {
                               motion: const StretchMotion(),
                               children: [
                                 SlidableAction(
-                                  onPressed: (_) => makeCall(contact.number, 0),
+                                  onPressed: (_) =>CallHelper.makeCall(context,contact.number, 0),
                                   icon: Icons.call,
                                   backgroundColor: Colors.green,
                                   label: "Call",
@@ -369,23 +368,6 @@ class _ContactScreenState extends State<ContactScreen> {
     return grouped;
   }
 
-  Future<void> makeCall(String number, int simSlot) async {
-    var status = await Permission.phone.status;
-    if (!status.isGranted) {
-      status = await Permission.phone.request();
-      if (!status.isGranted) return;
-    }
-    final intent = AndroidIntent(
-      action: 'android.intent.action.CALL',
-      data: 'tel:$number',
-      arguments: {"com.android.phone.extra.slot": simSlot},
-    );
-    await intent.launch();
-
-    if (!mounted) return;
-    final callProvider = Provider.of<CallProvider>(context, listen: false);
-    callProvider.addCall(number, simSlot, 0,false);
-  }
 
   Widget customContactAppBar() {
     return Container(

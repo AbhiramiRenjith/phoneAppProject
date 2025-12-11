@@ -1,65 +1,73 @@
+
 import 'package:call_log/call_log.dart';
 import 'package:flutter/material.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:permission_handler/permission_handler.dart';
-import 'package:phoneapp/screen/Dial/model/call_log_history_model.dart';
-
+import '../model/call_log_model.dart';
+import '../helper/call_helper.dart';
 
 class CallProvider extends ChangeNotifier {
- 
-final Box<CallModel> _box = Hive.box<CallModel>('call_log');
- Box<CallModel> get box => _box;
+  final Box<CallModel> _box = Hive.box<CallModel>('call_log');
+  Box<CallModel> get box => _box;
 
- 
- Future<void> addCall(String number,int simSlot,int duration,bool incoming) async {
+  Future<void> addCall(
+      String number, int simSlot, int duration, String callType) async {
     final now = DateTime.now();
-    final call = CallModel(number: number, time: now,simSlot: simSlot,duration: duration,incoming: incoming);
-    _box.add(call);
-    notifyListeners(); 
+    final call = CallModel(
+      number: number,
+      time: now,
+      simSlot: simSlot,
+      duration: duration,
+      callType: callType,
+    );
+    await _box.add(call);
+    notifyListeners();
   }
 
-
   Future<void> deleteCall(CallModel call) async {
-  call.delete(); 
-  notifyListeners();
-  
+    await call.delete();
+    await CallHelper.deleteCallLog(call.number, call.time.millisecondsSinceEpoch);
+    notifyListeners();
+  }
 
-}
-
-
-
-  // Fetch device calls (incoming/outgoing/missed)
   Future<void> fetchDeviceCalls() async {
-    if (!await Permission.phone.request().isGranted ||
-        !await Permission.contacts.request().isGranted) return;
+    if (!await Permission.phone.request().isGranted) return;
 
     Iterable<CallLogEntry> entries = await CallLog.get();
 
     for (var entry in entries) {
-      // Avoid duplicates by checking timestamp & number
-      bool exists = _box.values.any((c) =>
-          c.number == entry.number &&
-          c.time.millisecondsSinceEpoch ==
-              (entry.timestamp ?? DateTime.now().millisecondsSinceEpoch));
+      String type;
+      switch (entry.callType) {
+        case CallType.incoming:
+          type = "incoming";
+          break;
+        case CallType.outgoing:
+          type = "outgoing";
+          break;
+        case CallType.missed:
+          type = "missed";
+          break;
+        default:
+          type = "incoming";
+      }
+
+      final timestamp = entry.timestamp ?? 0;
+      bool exists = _box.values.any(
+          (c) => c.number == (entry.number ?? '') && c.time.millisecondsSinceEpoch == timestamp);
 
       if (!exists) {
-        _box.add(CallModel(
-          number: entry.number ?? '',
-          time: entry.timestamp != null
-              ? DateTime.fromMillisecondsSinceEpoch(entry.timestamp!)
-              : DateTime.now(),
-          simSlot: 0, // or map to entry.simSlot if available
-          duration: entry.duration ?? 0,
-          incoming: entry.callType == CallType.incoming,
-        ));
+        await _box.add(
+          CallModel(
+            number: entry.number ?? '',
+            time: DateTime.fromMillisecondsSinceEpoch(timestamp),
+            simSlot: 0,
+            duration: entry.duration ?? 0,
+            callType: type,
+          ),
+        );
       }
     }
+
     notifyListeners();
   }
-
-
-
-
 }
-
-

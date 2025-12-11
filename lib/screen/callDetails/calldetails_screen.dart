@@ -11,7 +11,7 @@ import 'package:phoneapp/screen/Contacts/model/contact_history_model.dart';
 import 'package:phoneapp/screen/Contacts/provider/contact_provider.dart';
 import 'package:phoneapp/screen/Contacts/view/create_contact.dart';
 import 'package:phoneapp/screen/Dial/helper/call_helper.dart';
-import 'package:phoneapp/screen/Dial/model/call_log_history_model.dart';
+import 'package:phoneapp/screen/Dial/model/call_log_model.dart';
 import 'package:phoneapp/screen/Dial/provider/call_provider.dart';
 import 'package:provider/provider.dart';
 
@@ -176,7 +176,7 @@ class _CallDetailsPageState extends State<CallDetailsPage> {
                 _actionButton(
                   Icons.call,
                   "SIM 1",
-                  () => makeCall(context,widget.call.number, 0),
+                  () =>CallHelper.makeCall(context,widget.call.number, 0),
                 )
               else ...[
                 _actionButton(
@@ -184,7 +184,7 @@ class _CallDetailsPageState extends State<CallDetailsPage> {
             
                   Icons.call,
                   "SIM 1",
-                  () => makeCall(context,widget.call.number, 0),
+                  () => CallHelper.makeCall(context,widget.call.number, 0),
                 ),
                 _actionButton(
                   Icons.call,
@@ -256,22 +256,6 @@ class _CallDetailsPageState extends State<CallDetailsPage> {
         ],
       ),
     );
-  }
-   Future<void> makeCall(BuildContext context,String number, int simSlot) async {
-    var status = await Permission.phone.status;
-    if (!status.isGranted) {
-      status = await Permission.phone.request();
-      if (!status.isGranted) return;
-    }
-    final intent = AndroidIntent(
-      action: 'android.intent.action.CALL',
-      data: 'tel:$number',
-      arguments: {"com.android.phone.extra.slot": simSlot},
-    );
-    await intent.launch();
-    if (!mounted) return;
-    final callProvider = Provider.of<CallProvider>(context, listen: false);
-    callProvider.addCall(number, simSlot, 0,false);
   }
 
   void _sendMessage(BuildContext context, String number) async {
