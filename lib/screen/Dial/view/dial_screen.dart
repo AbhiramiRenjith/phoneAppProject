@@ -33,14 +33,12 @@ class _DialScreenState extends State<DialScreen>
   CallModel? shareNumber;
   bool showDialer = true;
   bool showCheckbox = true;
-
   late TabController _tabController;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-
     _tabController = TabController(length: 2, vsync: this);
     loadSimInfo(); 
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -62,11 +60,9 @@ class _DialScreenState extends State<DialScreen>
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
       final callProvider = Provider.of<CallProvider>(context, listen: false);
-      callProvider.fetchDeviceCalls();
+      callProvider.fetchDeviceCalls(); 
     }
   }
-
-
 
 
   Future<void> loadSimInfo() async {
@@ -77,32 +73,9 @@ class _DialScreenState extends State<DialScreen>
     });
   }
 
-  String normalizeNumber(String number) {
-    number = number.replaceAll(RegExp(r'[^0-9]'), '');
-    if (number.startsWith("91") && number.length == 12) {
-      number = number.substring(2);
-    }
-    if (number.startsWith("0") && number.length == 11) {
-      number = number.substring(1);
-    }
-    return number;
-  }
-
-  String formatDuration(int seconds) {
-    final hours = seconds ~/ 3600;
-    final minutes = (seconds % 3600) ~/ 60;
-    final secs = seconds % 60;
-    String result = '';
-    if (hours > 0) result += '$hours:';
-    result += '${minutes.toString().padLeft(2, '0')}:';
-    result += secs.toString().padLeft(2, '0');
-    return '$result s';
-  }
-
   @override
   Widget build(BuildContext context) {
-    final callProvider = Provider.of<CallProvider>(context);
-
+  final callProvider = Provider.of<CallProvider>(context);
     callProvider.fetchDeviceCalls();
 
     return Scaffold(
@@ -598,6 +571,7 @@ class _DialScreenState extends State<DialScreen>
                     Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
+                        SizedBox(width: 15.sp),
                         if (simCount == 1) ...[
                           Expanded(child: callButton(TextConstants.sim1, 0)),
                         ] else ...[

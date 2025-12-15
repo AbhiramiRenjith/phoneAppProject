@@ -45,6 +45,22 @@ class _ContactScreenState extends State<ContactScreen> {
     );
     await intent.launch();
   }
+   Map<String, List<ContactModel>> groupContacts(List<ContactModel> contacts) {
+    final Map<String, List<ContactModel>> grouped = {};
+    contacts.sort(
+      (a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()),
+    );
+
+    for (var contact in contacts) {
+      String firstLetter = contact.name.isNotEmpty
+          ? contact.name[0].toUpperCase()
+          : "?";
+      grouped.putIfAbsent(firstLetter, () => []);
+      grouped[firstLetter]!.add(contact);
+    }
+    return grouped;
+  }
+
 
   void _showDeleteDialog(BuildContext context, ContactModel contact) {
     showDialog(
@@ -352,21 +368,6 @@ class _ContactScreenState extends State<ContactScreen> {
     );
   }
 
-  Map<String, List<ContactModel>> groupContacts(List<ContactModel> contacts) {
-    final Map<String, List<ContactModel>> grouped = {};
-    contacts.sort(
-      (a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()),
-    );
-
-    for (var contact in contacts) {
-      String firstLetter = contact.name.isNotEmpty
-          ? contact.name[0].toUpperCase()
-          : "?";
-      grouped.putIfAbsent(firstLetter, () => []);
-      grouped[firstLetter]!.add(contact);
-    }
-    return grouped;
-  }
 
 
   Widget customContactAppBar() {

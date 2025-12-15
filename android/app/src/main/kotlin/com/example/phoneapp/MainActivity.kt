@@ -18,10 +18,12 @@ class MainActivity: FlutterActivity() {
     override fun configureFlutterEngine(@NonNull flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
 
+
         // SIM Info & Call Listener
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, SIM_CHANNEL)
             .setMethodCallHandler { call, result ->
                 when (call.method) {
+                    
                     "getSimInfo" -> {
                         try {
                             val simList = getInsertedSimInfo()

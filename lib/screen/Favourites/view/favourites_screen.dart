@@ -10,6 +10,7 @@ import 'package:phoneapp/constants/text_constants.dart';
 import 'package:phoneapp/screen/Contacts/model/contact_history_model.dart';
 import 'package:phoneapp/screen/Contacts/provider/contact_provider.dart';
 import 'package:phoneapp/screen/Contacts/view/contacts_screen.dart';
+import 'package:phoneapp/screen/Dial/helper/call_helper.dart';
 import 'package:phoneapp/screen/Dial/provider/call_provider.dart';
 import 'package:phoneapp/screen/Favourites/provider/favourite_provider.dart';
 import 'package:provider/provider.dart';
@@ -58,7 +59,7 @@ class _FavouriteScreenState extends State<FavouriteScreen> {
                         motion: const DrawerMotion(),
                         children: [
                           SlidableAction(
-                            onPressed: (_) => makeCall(fav.name,0),
+                            onPressed: (_) =>CallHelper.makeCall(context,fav.number,0),
                             foregroundColor: ColorConstants.whiteColor,
                             backgroundColor: ColorConstants.greenColor,
                             icon: Icons.call,
@@ -189,21 +190,5 @@ class _FavouriteScreenState extends State<FavouriteScreen> {
     );
   }
 
-  Future<void> makeCall(String number, int simSlot) async {
-    var status = await Permission.phone.status;
-    if (!status.isGranted) {
-      status = await Permission.phone.request();
-      if (!status.isGranted) return;
-    }
-    final intent = AndroidIntent(
-      action: 'android.intent.action.CALL',
-      data: 'tel:$number',
-      arguments: {"com.android.phone.extra.slot": simSlot},
-    );
-    await intent.launch();
 
-    if (!mounted) return;
-    final callProvider = Provider.of<CallProvider>(context, listen: false);
-    callProvider.addCall(number, simSlot, 0,"outgoing");
-  }
 }
